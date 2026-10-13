@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ElementCheck</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div class="brand">ElementCheck <span id="device" class="muted"></span></div>
+  <div class="tools">
+    <select id="source" title="Nguồn dữ liệu"><option value="live">● Live device</option></select>
+    <button id="btnDelete" class="hidden" title="Xoá capture này">🗑</button>
+    <span class="sep"></span>
+    <button id="btnRefresh" title="Lấy lại màn hình + cây (R)">⟳ Refresh</button>
+    <button id="btnLive" title="Tự cập nhật khi màn hình thay đổi (L)">▶ Realtime</button>
+    <button id="btnCapture" class="primary" title="Chụp + lưu trên máy (C)">📷 Capture</button>
+    <select id="scale" title="Độ phân giải ảnh live">
+      <option value="0.35">35%</option><option value="0.5" selected>50%</option>
+      <option value="0.75">75%</option><option value="1">100%</option>
+    </select>
+    <span class="sep"></span>
+    <button data-global="back" title="Back">◁</button>
+    <button data-global="home" title="Home">○</button>
+    <button data-global="recents" title="Recents">▢</button>
+    <button data-global="notifications" title="Thanh thông báo">⇩</button>
+    <span class="sep"></span>
+    <label title="Vẽ khung tất cả phần tử"><input type="checkbox" id="optBoxes" checked> Boxes</label>
+    <label title="Bấm vào ảnh = chạm thật trên máy, kéo = vuốt (T)"><input type="checkbox" id="optControl"> Control</label>
+    <span class="sep"></span>
+    <button id="btnXml" title="Tải XML kiểu uiautomator">XML</button>
+    <button id="btnJson" title="Tải JSON đầy đủ">JSON</button>
+    <button id="btnPng" title="Tải ảnh">IMG</button>
+  </div>
+  <div id="status" class="muted"></div>
+</header>
+
+<main>
+  <section id="screenPane">
+    <div id="screenWrap">
+      <canvas id="imgCanvas"></canvas>
+      <canvas id="boxCanvas"></canvas>
+      <div id="tip" class="hidden"></div>
+    </div>
+  </section>
+
+  <section id="treePane">
+    <div class="paneHead">
+      <input id="search" placeholder="Tìm text / id / desc / class… (Enter: kế tiếp)" autocomplete="off">
+      <input id="xpath" placeholder="XPath, vd: //*[@clickable='true']" autocomplete="off">
+      <div id="findInfo" class="muted small"></div>
+    </div>
+    <div id="tree"><div id="treeInner"></div></div>
+  </section>
+
+  <section id="detailPane">
+    <div id="actions" class="hidden">
+      <div class="row">
+        <button data-act="click">Click</button>
+        <button data-act="longClick">Long</button>
+        <button data-act="tap">Tap</button>
+        <button data-act="focus">Focus</button>
+        <button data-act="scrollForward">Scroll ▼</button>
+        <button data-act="scrollBackward">Scroll ▲</button>
+        <button data-act="showOnScreen">Show</button>
+      </div>
+      <div class="row">
+        <input id="setTextVal" placeholder="Text…">
+        <button data-act="setText">Set text</button>
+      </div>
+    </div>
+    <div id="details"><p class="muted">Chọn một phần tử trên ảnh hoặc trong cây.</p></div>
+  </section>
+</main>
+<div id="toast" class="hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

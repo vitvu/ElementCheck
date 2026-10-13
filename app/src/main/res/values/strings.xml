@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">ElementCheck</string>
+    <string name="a11y_desc">ElementCheck: đọc cây phần tử UI, chụp màn hình và mở web inspector trên cổng 8765.</string>
+</resources>
