@@ -30,7 +30,7 @@ final class HttpServer {
 
     private final ECAccessibilityService svc;
     private final int port;
-    private final ExecutorService pool = Executors.newFixedThreadPool(4);
+    private final ExecutorService pool = Executors.newCachedThreadPool();
     private volatile ServerSocket socket;
     private Thread acceptThread;
 
@@ -78,6 +78,7 @@ final class HttpServer {
     private static final class Req {
         String method, path;
         final Map<String, String> query = new HashMap<>();
+        final Map<String, String> headers = new HashMap<>();
         byte[] body = new byte[0];
 
         String q(String k, String def) { String v = query.get(k); return v == null ? def : v; }
@@ -96,6 +97,12 @@ final class HttpServer {
             OutputStream out = sock.getOutputStream();
             Req req = parse(in);
             if (req == null) return;
+            String key = req.headers.get("sec-websocket-key");
+            if (req.path.equals("/ws") && key != null) {
+                sock.setSoTimeout(0);
+                new WebSocketSession(svc, in, out, key).run();
+                return;
+            }
             route(req, out);
             out.flush();
         } catch (Exception ignored) { }
@@ -123,8 +130,12 @@ final class HttpServer {
         String h;
         while ((h = readLine(in)) != null && !h.isEmpty()) {
             int colon = h.indexOf(':');
-            if (colon > 0 && h.substring(0, colon).trim().equalsIgnoreCase("content-length")) {
-                try { len = Integer.parseInt(h.substring(colon + 1).trim()); } catch (NumberFormatException ignored) { }
+            if (colon <= 0) continue;
+            String name = h.substring(0, colon).trim().toLowerCase(Locale.US);
+            String value = h.substring(colon + 1).trim();
+            r.headers.put(name, value);
+            if (name.equals("content-length")) {
+                try { len = Integer.parseInt(value); } catch (NumberFormatException ignored) { }
             }
         }
         if (len > 0) {
@@ -234,6 +245,16 @@ final class HttpServer {
                 return;
             }
             String name = seg.length > 1 ? seg[1] : CaptureStore.TREE;
+            if (name.equals(CaptureStore.META) && r.method.equals("POST")) {
+                result(out, CaptureStore.rename(svc, seg[0], r.json().optString("name")) ? null : "rename failed");
+                return;
+            }
+            if (name.equals(CaptureStore.THUMB)) {
+                byte[] t = CaptureStore.thumb(svc, seg[0]);
+                if (t == null) sendError(out, 404, "not found");
+                else send(out, 200, "image/jpeg", t);
+                return;
+            }
             if (!name.equals(CaptureStore.TREE) && !name.equals(CaptureStore.IMG) && !name.equals(CaptureStore.META)) {
                 sendError(out, 404, "not found");
                 return;

@@ -21,6 +21,7 @@ final class CaptureStore {
     static final String IMG = "screen.jpg";
     static final String TREE = "tree.json";
     static final String META = "meta.json";
+    static final String THUMB = "thumb.jpg";
     private static final Pattern ID = Pattern.compile("[0-9_]{6,40}");
 
     private CaptureStore() { }
@@ -60,6 +61,50 @@ final class CaptureStore {
         File[] files = d.listFiles();
         if (files != null) for (File f : files) f.delete();
         return d.delete();
+    }
+
+    static boolean rename(Context c, String id, String name) {
+        File d = dir(c, id);
+        if (d == null || !d.isDirectory()) return false;
+        try {
+            File f = new File(d, META);
+            org.json.JSONObject m = f.exists() ? new org.json.JSONObject(readText(f)) : new org.json.JSONObject();
+            m.put("name", name == null ? "" : name.trim());
+            write(f, m.toString().getBytes(StandardCharsets.UTF_8));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static String displayName(org.json.JSONObject meta, String id) {
+        String n = meta.optString("name");
+        if (!n.isEmpty()) return n;
+        n = meta.optString("pkg");
+        return n.isEmpty() ? id : n;
+    }
+
+    static synchronized byte[] thumb(Context c, String id) {
+        File d = dir(c, id);
+        if (d == null) return null;
+        try {
+            File t = new File(d, THUMB);
+            if (t.exists()) return readBytes(t);
+            File img = new File(d, IMG);
+            if (!img.exists()) return null;
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inSampleSize = 6;
+            android.graphics.Bitmap b = android.graphics.BitmapFactory.decodeFile(img.getPath(), o);
+            if (b == null) return null;
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, bos);
+            b.recycle();
+            byte[] data = bos.toByteArray();
+            write(t, data);
+            return data;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     static String readText(File f) throws IOException {

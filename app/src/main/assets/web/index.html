@@ -7,22 +7,49 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-inspect" viewBox="0 0 24 24"><path d="M11.71 17.99C8.53 17.84 6 15.22 6 12c0-3.31 2.69-6 6-6 3.22 0 5.84 2.53 5.99 5.71l-2.1-.63C15.48 9.31 13.89 8 12 8c-2.21 0-4 1.79-4 4 0 1.89 1.31 3.48 3.08 3.89l.63 2.1zM22 12c0 .3-.01.6-.04.9l-1.97-.59c.01-.1.01-.21.01-.31 0-4.42-3.58-8-8-8s-8 3.58-8 8 3.58 8 8 8c.1 0 .21 0 .31-.01l.59 1.97c-.3.03-.6.04-.9.04-5.52 0-10-4.48-10-10S6.48 2 12 2s10 4.48 10 10zm-3.77 4.26L22 15l-10-3 3 10 1.26-3.77 4.27 4.27 1.98-1.98-4.28-4.26z"/></symbol>
+  <symbol id="i-touch" viewBox="0 0 24 24"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.06.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.2 0-.62-.38-1.16-.91-1.38z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></symbol>
+  <symbol id="i-recents" viewBox="0 0 24 24"><path d="M18 4H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H6V6h12v12z"/></symbol>
+  <symbol id="i-notif" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></symbol>
+  <symbol id="i-delete" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></symbol>
+  <symbol id="i-enter" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.41L5.83 13H21V7z"/></symbol>
+  <symbol id="i-add" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5v10z"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></symbol>
+</svg>
+
 <main>
   <section class="panel" id="screenPanel">
     <div class="bar">
-      <div class="group">
-        <button id="btnInspect" class="icon active" title="Inspect (off = tap/swipe on device)">
-          <svg viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11z"/></svg>
-        </button>
-        <button id="btnRefresh" class="icon" title="Refresh">
-          <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
-        </button>
-        <button id="btnCapture" class="icon" title="Capture and save on device">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="4"/><path d="M4 8h3l2-3h6l2 3h3v11H4z"/></svg>
-        </button>
+      <div class="seg">
+        <button id="modeInspect" class="active" title="Inspect"><svg><use href="#i-inspect"/></svg></button>
+        <button id="modeControl" title="Control device"><svg><use href="#i-touch"/></svg></button>
       </div>
-      <select id="source" title="Source"><option value="live">Device</option></select>
-      <label class="switch" title="Show all element bounds"><input type="checkbox" id="optGrid"><span></span>Grid</label>
+      <button id="btnRefresh" class="icon" title="Refresh (R)"><svg><use href="#i-refresh"/></svg></button>
+      <button id="btnCapture" class="icon" title="Capture and save"><svg><use href="#i-camera"/></svg></button>
+      <button id="btnCaptures" class="icon" title="Saved captures"><svg><use href="#i-folder"/></svg></button>
+      <span class="grow"></span>
+      <label class="switch" title="Show all bounds"><input type="checkbox" id="optGrid"><span></span>Grid</label>
+    </div>
+    <div id="sourceBar" class="hidden">
+      <svg><use href="#i-folder"/></svg><span id="sourceName"></span>
+      <button id="btnLive" title="Back to device"><svg><use href="#i-phone"/></svg>Device</button>
     </div>
     <div id="screenBox">
       <div id="screenWrap">
@@ -30,10 +57,16 @@
         <canvas id="boxCanvas"></canvas>
       </div>
     </div>
+    <div id="controlBar" class="hidden">
+      <input id="typeText" placeholder="Type into focused field" autocomplete="off">
+      <button id="btnSend" class="icon" title="Set text"><svg><use href="#i-send"/></svg></button>
+      <button id="btnEnter" class="icon" title="Enter"><svg><use href="#i-enter"/></svg></button>
+    </div>
     <div class="nav">
-      <button data-global="recents" title="Recents"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h14"/></svg></button>
-      <button data-global="home" title="Home"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg></button>
-      <button data-global="back" title="Back"><svg viewBox="0 0 24 24"><path d="M10 6l-6 6 6 6M4 12h16"/></svg></button>
+      <button data-global="notifications" title="Notifications"><svg><use href="#i-notif"/></svg></button>
+      <button data-global="recents" title="Recents"><svg><use href="#i-recents"/></svg></button>
+      <button data-global="home" title="Home"><svg><use href="#i-home"/></svg></button>
+      <button data-global="back" title="Back"><svg><use href="#i-back"/></svg></button>
     </div>
   </section>
 
@@ -47,19 +80,31 @@
     <div class="treeCol">
       <div class="bar">
         <div class="search">
-          <input id="search" placeholder="Find by string, tag or XPath" autocomplete="off">
+          <svg><use href="#i-search"/></svg>
+          <input id="search" placeholder="Text, id, class or XPath" autocomplete="off">
           <span id="findCount"></span>
         </div>
-        <button id="btnPrev" class="icon" title="Previous"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
-        <button id="btnNext" class="icon" title="Next"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-        <button id="btnCopyXml" title="Copy XML">
-          <svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>Copy XML
-        </button>
+        <button id="btnPrev" class="icon" title="Previous"><svg><use href="#i-up"/></svg></button>
+        <button id="btnNext" class="icon" title="Next"><svg><use href="#i-down"/></svg></button>
+        <button id="btnCopyXml" title="Copy XML"><svg><use href="#i-copy"/></svg>XML</button>
       </div>
       <div id="tree"><div id="treeInner"></div></div>
     </div>
   </section>
 </main>
+
+<div id="capModal" class="modal hidden">
+  <div class="sheet">
+    <div class="bar">
+      <h3>Captures <span id="capCount" class="muted"></span></h3>
+      <span class="grow"></span>
+      <button id="capNew" class="primary"><svg><use href="#i-add"/></svg>New capture</button>
+      <button id="capClose" class="icon" title="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div id="capGrid"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <script src="app.js"></script>
 </body>

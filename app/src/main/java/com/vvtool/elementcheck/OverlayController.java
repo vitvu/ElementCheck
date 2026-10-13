@@ -4,14 +4,12 @@ import android.annotation.SuppressLint;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.LayerDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 
 final class OverlayController {
     private final ECAccessibilityService svc;
@@ -44,14 +42,14 @@ final class OverlayController {
         bg.setStroke(dp(1), Ui.OUTLINE);
         root.setBackground(bg);
         root.setElevation(dp(6));
-        root.setPadding(dp(6), dp(6), dp(6), dp(6));
+        root.setPadding(dp(5), dp(5), dp(5), dp(5));
 
-        TextView grip = glyph("∷", Ui.PRIMARY, Ui.PRIMARY_SOFT);
-        captureBtn = shutter();
-        closeBtn = glyph("✕", Ui.TEXT_2, 0xFFF1F5F9);
-        root.addView(grip, size(44, 0));
-        root.addView(captureBtn, size(52, 6));
-        root.addView(closeBtn, size(36, 6));
+        View grip = Ui.iconButton(svc, R.drawable.ic_drag, Ui.TEXT_2, 0x00000000, null);
+        captureBtn = Ui.iconButton(svc, R.drawable.ic_camera, 0xFFFFFFFF, Ui.PRIMARY, null);
+        closeBtn = Ui.iconButton(svc, R.drawable.ic_close, Ui.TEXT_2, 0xFFF1F5F9, null);
+        root.addView(grip, size(40, 0));
+        root.addView(captureBtn, size(48, 4));
+        root.addView(closeBtn, size(36, 8));
 
         captureBtn.setOnClickListener(v -> {
             v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(90)
@@ -120,31 +118,6 @@ final class OverlayController {
 
     void setInvisible(boolean invisible) {
         if (added) root.setVisibility(invisible ? View.INVISIBLE : View.VISIBLE);
-    }
-
-    private TextView glyph(String label, int color, int bgColor) {
-        TextView t = Ui.text(svc, label, 16, color, true);
-        t.setGravity(Gravity.CENTER);
-        GradientDrawable d = new GradientDrawable();
-        d.setShape(GradientDrawable.OVAL);
-        d.setColor(bgColor);
-        t.setBackground(d);
-        return t;
-    }
-
-    private View shutter() {
-        GradientDrawable outer = new GradientDrawable();
-        outer.setShape(GradientDrawable.OVAL);
-        outer.setColor(Ui.PRIMARY);
-        GradientDrawable ring = new GradientDrawable();
-        ring.setShape(GradientDrawable.OVAL);
-        ring.setStroke(dp(2), 0xFFFFFFFF);
-        LayerDrawable ld = new LayerDrawable(new android.graphics.drawable.Drawable[]{outer, ring});
-        ld.setLayerInset(1, dp(7), dp(7), dp(7), dp(7));
-        View v = new View(svc);
-        v.setBackground(ld);
-        v.setClickable(true);
-        return v;
     }
 
     private LinearLayout.LayoutParams size(int sizeDp, int topDp) {

@@ -76,15 +76,34 @@ final class Ui {
         return lp;
     }
 
+    static android.widget.ImageView icon(Context c, int res, int color) {
+        android.widget.ImageView iv = new android.widget.ImageView(c);
+        iv.setImageResource(res);
+        iv.setColorFilter(color);
+        iv.setScaleType(android.widget.ImageView.ScaleType.CENTER);
+        return iv;
+    }
+
+    static android.widget.ImageView iconButton(Context c, int res, int color, int bg, View.OnClickListener l) {
+        android.widget.ImageView iv = icon(c, res, color);
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(bg);
+        iv.setBackground(ripple(d, 0x221A56DB));
+        iv.setOnClickListener(l);
+        return iv;
+    }
+
+    static GradientDrawable chip(int color) {
+        return rounded(color, 999);
+    }
+
     static LinearLayout header(android.app.Activity a, String title, TextView[] outTitle) {
         LinearLayout bar = new LinearLayout(a);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(a, 8), dp(a, 8), dp(a, 16), dp(a, 8));
-        TextView back = text(a, "←", 22, TEXT, false);
-        back.setGravity(Gravity.CENTER);
-        back.setBackground(ripple(rounded(0x00000000, dp(a, 24)), 0x221A56DB));
-        back.setOnClickListener(v -> a.finish());
-        bar.addView(back, new LinearLayout.LayoutParams(dp(a, 48), dp(a, 48)));
+        bar.setPadding(dp(a, 8), dp(a, 8), dp(a, 8), dp(a, 8));
+        bar.addView(iconButton(a, R.drawable.ic_back, TEXT, 0x00000000, v -> a.finish()),
+                new LinearLayout.LayoutParams(dp(a, 48), dp(a, 48)));
         TextView t = text(a, title, 20, TEXT, true);
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);

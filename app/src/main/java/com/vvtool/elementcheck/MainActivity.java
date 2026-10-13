@@ -64,6 +64,7 @@ public class MainActivity extends Activity {
         LinearLayout overlayCard = Ui.card(this);
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(leading(R.drawable.ic_camera));
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.addView(Ui.text(this, "Floating overlay", 17, Ui.TEXT, true));
@@ -93,12 +94,13 @@ public class MainActivity extends Activity {
         LinearLayout cc = Ui.card(this);
         cc.setOrientation(LinearLayout.HORIZONTAL);
         cc.setGravity(Gravity.CENTER_VERTICAL);
+        cc.addView(leading(R.drawable.ic_folder));
         LinearLayout ct = new LinearLayout(this);
         ct.setOrientation(LinearLayout.VERTICAL);
         ct.addView(Ui.text(this, "Captures", 17, Ui.TEXT, true));
         ct.addView(Ui.text(this, "Saved screenshots and hierarchies", 13, Ui.TEXT_2, false));
         cc.addView(ct, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        cc.addView(Ui.text(this, "›", 28, Ui.TEXT_2, false));
+        cc.addView(Ui.icon(this, R.drawable.ic_chevron_right, Ui.TEXT_2));
         cc.setBackground(Ui.ripple(Ui.rounded(Ui.SURFACE, Ui.dp(this, 24)), 0x141A56DB));
         cc.setOnClickListener(v -> startActivity(new Intent(this, CapturesActivity.class)));
         col.addView(cc, Ui.matchWrap(this, 16));
@@ -152,6 +154,15 @@ public class MainActivity extends Activity {
         heroAction.setTextColor(running ? Ui.PRIMARY : 0xFF475569);
         overlaySwitch.setChecked(Prefs.overlayEnabled(this));
         projectionCard.setVisibility(Build.VERSION.SDK_INT < 30 && !ProjectionService.isRunning() ? View.VISIBLE : View.GONE);
+    }
+
+    private View leading(int icon) {
+        android.widget.ImageView iv = Ui.iconButton(this, icon, Ui.PRIMARY, Ui.PRIMARY_SOFT, null);
+        iv.setClickable(false);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
+        lp.rightMargin = Ui.dp(this, 16);
+        iv.setLayoutParams(lp);
+        return iv;
     }
 
     private static java.util.List<String> localIps() {

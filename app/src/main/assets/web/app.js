@@ -1,24 +1,26 @@
 'use strict';
 (() => {
   const $ = (id) => document.getElementById(id);
-  const ROW_H = 30;
+  const ROW_H = 28;
   const BOOL_PROPS = [['checkable'], ['checked'], ['clickable'], ['enabled'], ['focusable'], ['focused'],
     ['long-clickable', 'longClickable'], ['scrollable'], ['selected'], ['password'], ['editable'], ['displayed', 'visible']];
-  const EYE = '<svg class="eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
-  const EYE_OFF = '<svg class="eye" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/></svg>';
+  const WIN_LABEL = { application: 'APP', system: 'SYSTEM', inputMethod: 'KEYBOARD' };
+  const icon = (id, cls) => `<svg${cls ? ` class="${cls}"` : ''}><use href="#i-${id}"/></svg>`;
 
   const S = {
     data: null, source: 'live', img: null, nodes: [], wins: [],
     selected: null, hover: null, collapsed: new Set(), rows: [],
     matches: [], matchSet: new Set(), matchPos: -1, xml: null,
-    inspect: true, cycle: [], cyclePos: 0, cycleAt: null, busy: false,
+    mode: 'inspect', cycle: [], cyclePos: 0, cycleAt: null, busy: false, captures: [],
   };
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const shortCls = (c) => (c || 'node').slice((c || '').lastIndexOf('.') + 1);
   const shortId = (r) => { const k = (r || '').indexOf(':id/'); return k >= 0 ? r.slice(k + 4) : (r || ''); };
   const trunc = (s, n) => (s.length > n ? s.slice(0, n) + '…' : s);
   const area = (b) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
   const boundsStr = (b) => `[${b[0]},${b[1]}][${b[2]},${b[3]}]`;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   function toast(msg) {
     const t = $('toast');
@@ -28,7 +30,7 @@
     toast.h = setTimeout(() => t.classList.remove('show'), 2000);
   }
 
-  async function api(path, body, method) {
+  async function http(path, body, method) {
     const opt = body !== undefined
       ? { method: method || 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }
       : { method: method || 'GET' };
@@ -37,14 +39,97 @@
     return j;
   }
 
-  function loadImage(url) {
+  // websocket
+
+  const WS = { sock: null, open: false, seq: 0, pending: new Map(), snapImg: null };
+
+  function wsConnect() {
+    const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    s.binaryType = 'arraybuffer';
+    s.onopen = () => {
+      WS.open = true;
+      if (S.mode === 'control') send({ t: 'stream', on: true, scale: 0.5 });
+    };
+    s.onclose = () => {
+      WS.open = false;
+      for (const p of WS.pending.values()) p.reject(new Error('disconnected'));
+      WS.pending.clear();
+      setTimeout(wsConnect, 1500);
+    };
+    s.onmessage = (e) => {
+      if (typeof e.data !== 'string') {
+        const type = new Uint8Array(e.data, 0, 1)[0];
+        const jpeg = new Blob([new Uint8Array(e.data, 1)], { type: 'image/jpeg' });
+        if (type === 1) WS.snapImg = jpeg;
+        else if (type === 2) onStreamFrame(jpeg);
+        return;
+      }
+      const m = JSON.parse(e.data);
+      const p = WS.pending.get(m.id);
+      if (!p) return;
+      WS.pending.delete(m.id);
+      if (m.t === 'err') p.reject(new Error(m.error));
+      else p.resolve(m);
+    };
+    WS.sock = s;
+  }
+
+  function send(msg) { if (WS.open) WS.sock.send(JSON.stringify(msg)); }
+
+  function rpc(msg) {
+    if (!WS.open) return null;
+    const id = ++WS.seq;
+    msg.id = id;
+    return new Promise((resolve, reject) => {
+      WS.pending.set(id, { resolve, reject });
+      WS.sock.send(JSON.stringify(msg));
+      setTimeout(() => { if (WS.pending.delete(id)) reject(new Error('timeout')); }, 15000);
+    });
+  }
+
+  async function snapshot() {
+    const r = rpc({ t: 'snap', scale: 0.6, q: 80 });
+    if (r) {
+      WS.snapImg = null;
+      const m = await r;
+      return { data: m.data, img: WS.snapImg ? await blobImage(WS.snapImg) : null };
+    }
+    const d = await http('/api/snapshot?scale=0.6&q=80');
+    return { data: d, img: d.hasImage ? await urlImage(`/api/screen.jpg?seq=${d.seq}`) : null };
+  }
+
+  async function command(msg, httpPath) {
+    const r = rpc(msg);
+    if (r) return r;
+    if (httpPath) return http(httpPath, msg);
+    throw new Error('not connected');
+  }
+
+  function blobImage(blob) {
+    if (window.createImageBitmap) return createImageBitmap(blob).catch(() => null);
+    return urlImage(URL.createObjectURL(blob));
+  }
+
+  function urlImage(url) {
     return new Promise((res) => {
-      if (!url) return res(null);
       const im = new Image();
       im.onload = () => res(im);
       im.onerror = () => res(null);
       im.src = url;
     });
+  }
+
+  let streamBusy = false;
+  async function onStreamFrame(blob) {
+    if (S.mode !== 'control' || streamBusy) { send({ t: 'ack' }); return; }
+    streamBusy = true;
+    const img = await blobImage(blob);
+    if (img && S.data) {
+      S.img = img;
+      paintImage();
+    }
+    streamBusy = false;
+    send({ t: 'ack' });
   }
 
   function xq(s) {
@@ -128,8 +213,7 @@
     for (const x of tries) { try { if (evalXpath(x).length === 1) return x; } catch (e) { /* skip */ } }
     if (tries.length) {
       try {
-        const all = evalXpath(tries[0]);
-        const k = all.indexOf(n);
+        const k = evalXpath(tries[0]).indexOf(n);
         if (k >= 0) return `(${tries[0]})[${k + 1}]`;
       } catch (e) { /* skip */ }
     }
@@ -143,10 +227,9 @@
     S.busy = true;
     $('btnRefresh').disabled = true;
     try {
-      if (S.source !== 'live') { S.source = 'live'; $('source').value = 'live'; }
-      const d = await api('/api/snapshot?scale=0.6&q=80');
-      setData(d, await loadImage(d.hasImage ? `/api/screen.jpg?seq=${d.seq}` : null));
-      $('source').options[0].textContent = d.device || 'Device';
+      const { data, img } = await snapshot();
+      setSource('live');
+      setData(data, img);
     } catch (e) {
       toast('Connection failed');
     } finally {
@@ -155,27 +238,113 @@
     }
   }
 
-  async function loadCaptures(keep) {
-    try {
-      const list = await api('/api/captures');
-      const sel = $('source');
-      const first = sel.options[0].textContent;
-      sel.innerHTML = `<option value="live">${esc(first)}</option>` + list.map((c) => {
-        const m = c.meta || {};
-        const t = m.time ? new Date(m.time).toLocaleString() : c.id;
-        return `<option value="${esc(c.id)}">${esc(t)} · ${esc(m.pkg || '')}</option>`;
-      }).join('');
-      sel.value = keep || 'live';
-    } catch (e) { /* offline */ }
+  function setSource(id) {
+    S.source = id;
+    const live = id === 'live';
+    $('sourceBar').classList.toggle('hidden', live);
+    if (!live) {
+      const c = S.captures.find((x) => x.id === id);
+      $('sourceName').textContent = c ? capName(c) : id;
+      setMode('inspect');
+    }
   }
 
   async function openCapture(id) {
-    S.source = id;
     try {
-      const d = await api(`/api/captures/${id}/tree.json`);
-      setData(d, await loadImage(d.hasImage ? `/api/captures/${id}/screen.jpg` : null));
+      const d = await http(`/api/captures/${id}/tree.json`);
+      setSource(id);
+      setData(d, d.hasImage ? await urlImage(`/api/captures/${id}/screen.jpg`) : null);
+      closeCaptures();
     } catch (e) { toast('Failed to open capture'); }
   }
+
+  // captures manager
+
+  const capName = (c) => (c.meta && (c.meta.name || c.meta.pkg)) || c.id;
+
+  async function loadCaptures() {
+    try { S.captures = await http('/api/captures'); } catch (e) { S.captures = []; }
+    renderCaptures();
+  }
+
+  function renderCaptures() {
+    $('capCount').textContent = S.captures.length ? `· ${S.captures.length}` : '';
+    if (!S.captures.length) { $('capGrid').innerHTML = '<div class="capEmpty">No captures yet</div>'; return; }
+    $('capGrid').innerHTML = S.captures.map((c) => {
+      const m = c.meta || {};
+      const time = m.time ? new Date(m.time).toLocaleString() : '';
+      return `<div class="card${c.id === S.source ? ' cur' : ''}" data-id="${esc(c.id)}">
+        <div class="thumb" data-act="open" style="background-image:url('/api/captures/${esc(c.id)}/thumb.jpg')"></div>
+        <div class="meta"><div class="name" title="${esc(capName(c))}">${esc(capName(c))}</div>
+          <div class="sub">${esc(time)} · ${m.nodes || 0} nodes</div></div>
+        <div class="acts">
+          <button data-act="open" title="Open">${icon('open')}</button>
+          <button data-act="rename" title="Rename">${icon('edit')}</button>
+          <button data-act="json" title="Download JSON">${icon('download')}</button>
+          <span class="grow"></span>
+          <button data-act="delete" class="del" title="Delete">${icon('delete')}</button>
+        </div></div>`;
+    }).join('');
+  }
+
+  function download(url, name) {
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+  }
+
+  $('capGrid').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]');
+    const card = e.target.closest('.card');
+    if (!b || !card) return;
+    const id = card.dataset.id;
+    const c = S.captures.find((x) => x.id === id);
+    switch (b.dataset.act) {
+      case 'open': openCapture(id); break;
+      case 'json': download(`/api/captures/${id}/tree.json`, `${id}.json`); download(`/api/captures/${id}/screen.jpg`, `${id}.jpg`); break;
+      case 'rename': {
+        const nameEl = card.querySelector('.name');
+        nameEl.innerHTML = `<input value="${esc(capName(c))}">`;
+        const input = nameEl.firstChild;
+        input.focus(); input.select();
+        const done = async (save) => {
+          if (save && input.value.trim()) {
+            try { await http(`/api/captures/${id}/meta.json`, { name: input.value.trim() }); } catch (err) { toast(err.message); }
+          }
+          await loadCaptures();
+          if (S.source === id) setSource(id);
+        };
+        input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') done(true); else if (ev.key === 'Escape') done(false); });
+        input.addEventListener('blur', () => done(true), { once: true });
+        break;
+      }
+      case 'delete':
+        if (!confirm(`Delete "${capName(c)}"?`)) return;
+        try { await http(`/api/captures/${id}`, undefined, 'DELETE'); } catch (err) { toast(err.message); }
+        if (S.source === id) refresh();
+        loadCaptures();
+        break;
+      default: break;
+    }
+  });
+
+  function openCaptures() { $('capModal').classList.remove('hidden'); loadCaptures(); }
+  function closeCaptures() { $('capModal').classList.add('hidden'); }
+  $('btnCaptures').addEventListener('click', openCaptures);
+  $('capClose').addEventListener('click', closeCaptures);
+  $('capModal').addEventListener('click', (e) => { if (e.target.id === 'capModal') closeCaptures(); });
+
+  async function capture() {
+    const btns = [$('btnCapture'), $('capNew')];
+    btns.forEach((b) => (b.disabled = true));
+    try {
+      const r = await http('/api/capture', {});
+      toast(`Saved · ${r.nodes} nodes`);
+      if (!$('capModal').classList.contains('hidden')) loadCaptures();
+    } catch (err) { toast(err.message); }
+    btns.forEach((b) => (b.disabled = false));
+  }
+  $('btnCapture').addEventListener('click', capture);
+  $('capNew').addEventListener('click', capture);
 
   // screen
 
@@ -196,20 +365,24 @@
       c.style.width = view.w + 'px'; c.style.height = view.h + 'px';
       c.width = Math.round(view.w * view.dpr); c.height = Math.round(view.h * view.dpr);
     }
+    paintImage();
+    drawBoxes();
+  }
+
+  function paintImage() {
     const ctx = imgCanvas.getContext('2d');
     ctx.clearRect(0, 0, imgCanvas.width, imgCanvas.height);
     if (S.img) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(S.img, 0, 0, imgCanvas.width, imgCanvas.height);
     }
-    drawBoxes();
   }
 
   function drawBoxes() {
     const ctx = boxCanvas.getContext('2d');
     const s = view.k * view.dpr;
     ctx.clearRect(0, 0, boxCanvas.width, boxCanvas.height);
-    if (!S.data) return;
+    if (!S.data || S.mode === 'control') return;
     const rect = (b) => ctx.rect(b[0] * s + 0.5, b[1] * s + 0.5, (b[2] - b[0]) * s, (b[3] - b[1]) * s);
     if ($('optGrid').checked) {
       ctx.beginPath();
@@ -248,18 +421,20 @@
   }
 
   let down = null;
-  boxCanvas.addEventListener('mousedown', (e) => { down = { p: toDevice(e), t: Date.now() }; });
-  boxCanvas.addEventListener('mouseup', async (e) => {
+  boxCanvas.addEventListener('pointerdown', (e) => {
+    down = { p: toDevice(e), t: Date.now() };
+    boxCanvas.setPointerCapture(e.pointerId);
+  });
+  boxCanvas.addEventListener('pointerup', (e) => {
     if (!down || !S.data) return;
     const p = toDevice(e), d = down;
     down = null;
-    if (!S.inspect) {
-      if (S.source !== 'live') return toast('Open the device to control it');
+    if (S.mode === 'control') {
       const dist = Math.hypot(p.x - d.p.x, p.y - d.p.y), dt = Date.now() - d.t;
       const g = dist < 12
-        ? { type: dt > 500 ? 'long' : 'tap', x: d.p.x, y: d.p.y, duration: dt > 500 ? dt : 0 }
-        : { type: 'swipe', x: d.p.x, y: d.p.y, x2: p.x, y2: p.y, duration: Math.min(2000, Math.max(120, dt)) };
-      try { await api('/api/gesture', g); setTimeout(refresh, 600); } catch (err) { toast(err.message); }
+        ? { t: 'gesture', type: dt > 500 ? 'long' : 'tap', x: d.p.x, y: d.p.y, duration: dt > 500 ? dt : 0 }
+        : { t: 'gesture', type: 'swipe', x: d.p.x, y: d.p.y, x2: p.x, y2: p.y, duration: Math.min(2000, Math.max(120, dt)) };
+      command(g, '/api/gesture').catch((err) => toast(err.message));
       return;
     }
     const same = S.cycleAt && Math.hypot(p.x - S.cycleAt.x, p.y - S.cycleAt.y) < 6;
@@ -267,13 +442,45 @@
     else if (S.cycle.length) S.cyclePos = (S.cyclePos + 1) % S.cycle.length;
     if (S.cycle.length) select(S.cycle[S.cyclePos], true);
   });
-  boxCanvas.addEventListener('mousemove', (e) => {
-    if (!S.data || !S.inspect) return;
+  boxCanvas.addEventListener('pointermove', (e) => {
+    if (!S.data || S.mode !== 'inspect' || down) return;
     const p = toDevice(e);
     const h = hitTest(p.x, p.y)[0] || null;
     if (h !== S.hover) { S.hover = h; drawBoxes(); }
   });
-  boxCanvas.addEventListener('mouseleave', () => { S.hover = null; drawBoxes(); });
+  boxCanvas.addEventListener('pointerleave', () => { S.hover = null; drawBoxes(); });
+
+  function setMode(mode) {
+    if (S.mode === mode) return;
+    if (mode === 'control' && S.source !== 'live') { toast('Switch to the device first'); return; }
+    S.mode = mode;
+    $('modeInspect').classList.toggle('active', mode === 'inspect');
+    $('modeControl').classList.toggle('active', mode === 'control');
+    $('controlBar').classList.toggle('hidden', mode !== 'control');
+    boxCanvas.classList.toggle('control', mode === 'control');
+    S.hover = null;
+    layoutScreen();
+    if (mode === 'control') {
+      if (!WS.open) toast('WebSocket not connected');
+      send({ t: 'stream', on: true, scale: 0.5 });
+    } else {
+      send({ t: 'stream', on: false });
+      if (S.source === 'live') refresh();
+    }
+  }
+  $('modeInspect').addEventListener('click', () => setMode('inspect'));
+  $('modeControl').addEventListener('click', () => setMode('control'));
+
+  async function typeText(enter) {
+    const text = $('typeText').value;
+    try {
+      await command(enter ? { t: 'text', enter: true } : { t: 'text', text });
+      if (!enter) $('typeText').value = '';
+    } catch (err) { toast(err.message); }
+  }
+  $('btnSend').addEventListener('click', () => typeText(false));
+  $('btnEnter').addEventListener('click', () => typeText(true));
+  $('typeText').addEventListener('keydown', (e) => { if (e.key === 'Enter') typeText(false); });
 
   // tree
 
@@ -285,9 +492,11 @@
       rows.push({ n, depth });
       if (n.ch && n.ch.length && !S.collapsed.has(n.xpath)) for (const c of n.ch) walk(c, depth + 1);
     };
-    if (S.data) {
-      rows.push({ root: true, depth: 0 });
-      if (!S.collapsed.has('/hierarchy')) for (const w of S.wins) if (w.root) walk(w.root, 1);
+    for (const w of S.wins) {
+      if (!w.root) continue;
+      const key = 'win:' + w.id;
+      rows.push({ w, key, depth: 0 });
+      if (!S.collapsed.has(key)) walk(w.root, 1);
     }
     S.rows = rows;
     treeInner.style.height = rows.length * ROW_H + 'px';
@@ -302,17 +511,26 @@
     let html = '';
     for (let k = a; k < b; k++) {
       const r = S.rows[k];
-      const pad = 8 + r.depth * 16;
-      const style = `top:${k * ROW_H}px;padding-left:${pad}px`;
-      if (r.root) {
-        html += `<div class="tr" data-row="${k}" style="${style}"><span class="tw" data-tw="1">${S.collapsed.has('/hierarchy') ? '▶' : '▼'}</span>${EYE}<span class="cls">hierarchy</span></div>`;
+      const style = `top:${k * ROW_H}px;padding-left:${4 + r.depth * 14}px`;
+      if (r.w) {
+        const type = WIN_LABEL[r.w.type] ? r.w.type : 'other';
+        const label = WIN_LABEL[r.w.type] || r.w.type.toUpperCase();
+        const pkg = r.w.root.pkg || r.w.title || '';
+        html += `<div class="tr win" data-row="${k}" style="${style}">${icon(S.collapsed.has(r.key) ? 'right' : 'drop', 'tw')}<span class="wl w-${type}">${esc(label)}</span><span class="wp">${esc(pkg)}</span></div>`;
         continue;
       }
       const n = r.n;
       const has = n.ch && n.ch.length;
-      const cls = 'tr' + (n === S.selected ? ' sel' : '') + (S.matchSet.has(n) ? ' match' : '') + (n.visible ? '' : ' hid');
-      let sub = n.rid ? '#' + shortId(n.rid) : n.text ? `"${trunc(n.text, 32)}"` : n.desc ? trunc(n.desc, 32) : '';
-      html += `<div class="${cls}" data-row="${k}" style="${style}"><span class="tw" data-tw="1">${has ? (S.collapsed.has(n.xpath) ? '▶' : '▼') : ''}</span>${n.visible ? EYE : EYE_OFF}<span class="cls">${esc(n.cls || 'node')}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</div>`;
+      const cls = 'tr' + (n === S.selected ? ' sel' : '') + (S.matchSet.has(n) ? ' match' : '');
+      const clsName = 'cls' + (n.clickable ? ' click' : '') + (n.visible ? '' : ' hid');
+      let h2 = `<span class="${clsName}">${esc(shortCls(n.cls))}</span>`;
+      if (n.rid) h2 += `<span class="rid">#${esc(shortId(n.rid))}</span>`;
+      if (n.text) h2 += `<span class="str">"${esc(trunc(n.text, 60))}"</span>`;
+      else if (n.desc) h2 += `<span class="dsc">${esc(trunc(n.desc, 60))}</span>`;
+      if (n.scrollable) h2 += '<span class="tag">scroll</span>';
+      if (n.editable) h2 += '<span class="tag">edit</span>';
+      if (n.checkable) h2 += `<span class="tag">${n.checked ? 'checked' : 'check'}</span>`;
+      html += `<div class="${cls}" data-row="${k}" style="${style}">${icon(S.collapsed.has(n.xpath) ? 'right' : 'drop', 'tw' + (has ? '' : ' none'))}${h2}</div>`;
     }
     treeInner.innerHTML = html;
   }
@@ -328,13 +546,13 @@
     const el = e.target.closest('.tr');
     const r = el && S.rows[+el.dataset.row];
     if (!r) return;
-    const key = r.root ? '/hierarchy' : r.n.xpath;
-    if (r.root || e.target.dataset.tw) {
-      if (r.root || (r.n.ch && r.n.ch.length)) {
+    const key = r.w ? r.key : r.n.xpath;
+    if (r.w || e.target.closest('.tw')) {
+      if (r.w || (r.n.ch && r.n.ch.length)) {
         if (!S.collapsed.delete(key)) S.collapsed.add(key);
         renderTree();
       }
-      if (r.root) return;
+      if (r.w) return;
     }
     select(r.n, false);
   });
@@ -347,7 +565,7 @@
   treeInner.addEventListener('mouseleave', () => { S.hover = null; drawBoxes(); });
 
   function reveal(n) {
-    let changed = S.collapsed.delete('/hierarchy');
+    let changed = S.collapsed.delete('win:' + n.winRef.id);
     for (let p = n.parent; p; p = p.parent) if (S.collapsed.delete(p.xpath)) changed = true;
     if (changed) buildRows();
     const k = S.rows.findIndex((r) => r.n === n);
@@ -402,7 +620,7 @@
     }).join('');
     html += opt.filter(([, v]) => v !== undefined && v !== null && v !== '')
       .map(([k, v]) => `<tr><td>${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join('');
-    html += `<tr><td>window</td><td class="v">${esc(n.winRef.type)} · layer ${n.winRef.layer}</td></tr>`;
+    html += `<tr><td>window</td><td class="v">${esc(WIN_LABEL[n.winRef.type] || n.winRef.type)} · layer ${n.winRef.layer}</td></tr>`;
     body.innerHTML = html;
   }
 
@@ -447,25 +665,8 @@
 
   // toolbar
 
-  $('btnInspect').addEventListener('click', () => {
-    S.inspect = !S.inspect;
-    $('btnInspect').classList.toggle('active', S.inspect);
-    boxCanvas.classList.toggle('control', !S.inspect);
-    S.hover = null; drawBoxes();
-  });
   $('btnRefresh').addEventListener('click', refresh);
-  $('btnCapture').addEventListener('click', async () => {
-    const btn = $('btnCapture');
-    btn.disabled = true;
-    try {
-      const r = await api('/api/capture', {});
-      toast(`Saved · ${r.nodes} nodes`);
-      await loadCaptures(S.source);
-    } catch (err) { toast(err.message); }
-    btn.disabled = false;
-  });
-  $('source').addEventListener('change', (e) => (e.target.value === 'live' ? refresh() : openCapture(e.target.value)));
-  $('source').addEventListener('focus', () => loadCaptures(S.source));
+  $('btnLive').addEventListener('click', refresh);
   $('optGrid').addEventListener('change', drawBoxes);
   $('btnCopyXml').addEventListener('click', () => {
     if (!S.data) return;
@@ -474,14 +675,17 @@
     copy("<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>\n" + new XMLSerializer().serializeToString(doc));
   });
   document.querySelectorAll('[data-global]').forEach((b) => b.addEventListener('click', async () => {
-    try { await api('/api/global', { action: b.dataset.global }); setTimeout(refresh, 700); } catch (err) { toast(err.message); }
+    try {
+      await command({ t: 'global', action: b.dataset.global }, '/api/global');
+      if (S.mode === 'inspect') { await sleep(600); refresh(); }
+    } catch (err) { toast(err.message); }
   }));
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
     const n = S.selected;
-    if (e.key === 'r') refresh();
-    else if (e.key === 'Escape') select(null, false);
+    if (e.key === 'Escape') { if (!$('capModal').classList.contains('hidden')) closeCaptures(); else select(null, false); }
+    else if (e.key === 'r') refresh();
     else if (n && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       const d = e.key === 'ArrowDown' ? 1 : -1;
       for (let j = S.rows.findIndex((r) => r.n === n) + d; j >= 0 && j < S.rows.length; j += d) {
@@ -505,5 +709,6 @@
   });
 
   renderProps();
-  refresh().then(() => loadCaptures('live'));
+  wsConnect();
+  setTimeout(refresh, 300);
 })();

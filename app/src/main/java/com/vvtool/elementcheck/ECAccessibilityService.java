@@ -9,12 +9,14 @@ import android.graphics.Path;
 import android.graphics.Point;
 import android.hardware.HardwareBuffer;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Display;
 import android.view.Surface;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
@@ -169,6 +171,36 @@ public class ECAccessibilityService extends AccessibilityService {
         }
     }
 
+    byte[] frame(float scale, int quality) {
+        synchronized (captureLock) {
+            Bitmap bmp = captureBitmap(false);
+            if (bmp == null) return null;
+            Bitmap out = Bitmap.createScaledBitmap(bmp, Math.max(1, Math.round(bmp.getWidth() * scale)),
+                    Math.max(1, Math.round(bmp.getHeight() * scale)), true);
+            if (out != bmp) bmp.recycle();
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(128 * 1024);
+            out.compress(Bitmap.CompressFormat.JPEG, quality, bos);
+            out.recycle();
+            return bos.toByteArray();
+        }
+    }
+
+    String inputText(String text, boolean enter) {
+        AccessibilityNodeInfo n = findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (n == null) return "no focused input";
+        boolean ok;
+        if (enter) {
+            ok = Build.VERSION.SDK_INT >= 30
+                    && n.performAction(android.R.id.accessibilityActionImeEnter);
+        } else {
+            Bundle b = new Bundle();
+            b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+            ok = n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, b);
+        }
+        if (Build.VERSION.SDK_INT < 33) n.recycle();
+        return ok ? null : "rejected";
+    }
+
     Snapshot captureAndSave() throws Exception {
         Snapshot s = snapshot(true, 1f, 90);
         String meta = new Json(256).beginObj()
@@ -263,6 +295,7 @@ public class ECAccessibilityService extends AccessibilityService {
             case "back": a = GLOBAL_ACTION_BACK; break;
             case "home": a = GLOBAL_ACTION_HOME; break;
             case "recents": a = GLOBAL_ACTION_RECENTS; break;
+            case "notifications": a = GLOBAL_ACTION_NOTIFICATIONS; break;
             default: return "unknown action";
         }
         return performGlobalAction(a) ? null : "rejected";
