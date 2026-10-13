@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.CompoundButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -18,22 +20,28 @@ import android.widget.TextView;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 public class MainActivity extends Activity {
     private LinearLayout hero;
-    private TextView statusTitle, statusSub, heroAction;
-    private Switch overlaySwitch;
-    private View projectionCard;
-    private boolean running;
+    private TextView statusTitle, statusSub;
+    private Row a11yRow, serverRow, overlayRow, streamRow;
+    private boolean binding;
+
+    private static final class Row {
+        Switch sw;
+        TextView sub;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        int pad = Ui.dp(this, 20);
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 20);
         col.setPadding(pad, Ui.dp(this, 24), pad, pad);
 
         col.addView(Ui.text(this, "ElementCheck", 30, Ui.TEXT, true));
@@ -46,69 +54,39 @@ public class MainActivity extends Activity {
         statusSub = Ui.text(this, "", 15, 0xE6FFFFFF, false);
         statusSub.setTextIsSelectable(true);
         statusSub.setLineSpacing(0, 1.2f);
-        heroAction = Ui.text(this, "", 15, Ui.PRIMARY, true);
-        heroAction.setGravity(Gravity.CENTER);
-        heroAction.setMinHeight(Ui.dp(this, 48));
-        heroAction.setPadding(Ui.dp(this, 20), 0, Ui.dp(this, 20), 0);
-        heroAction.setBackground(Ui.ripple(Ui.rounded(0xFFFFFFFF, Ui.dp(this, 24)), 0x221A56DB));
-        heroAction.setOnClickListener(v -> startActivity(
-                new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
         hero.addView(statusTitle);
         hero.addView(statusSub, Ui.matchWrap(this, 6));
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        ap.topMargin = Ui.dp(this, 18);
-        hero.addView(heroAction, ap);
         col.addView(hero, Ui.matchWrap(this, 24));
 
-        LinearLayout overlayCard = Ui.card(this);
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(leading(R.drawable.ic_camera));
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(Ui.text(this, "Floating overlay", 17, Ui.TEXT, true));
-        texts.addView(Ui.text(this, "Capture button over any app", 13, Ui.TEXT_2, false));
-        row.addView(texts, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        overlaySwitch = new Switch(this);
-        int[][] states = {{android.R.attr.state_checked}, {}};
-        overlaySwitch.setThumbTintList(new ColorStateList(states, new int[]{Ui.PRIMARY, 0xFFFFFFFF}));
-        overlaySwitch.setTrackTintList(new ColorStateList(states, new int[]{0xFF9DB8F2, 0xFFCBD5E1}));
-        overlaySwitch.setOnCheckedChangeListener((b, on) -> {
-            Prefs.setOverlayEnabled(this, on);
-            ECAccessibilityService s = ECAccessibilityService.get();
-            if (s != null) s.setOverlayVisible(on);
-        });
-        row.addView(overlaySwitch);
-        overlayCard.addView(row);
-        col.addView(overlayCard, Ui.matchWrap(this, 16));
+        col.addView(section("Permissions"));
+        LinearLayout perms = Ui.card(this);
+        perms.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
+        a11yRow = row(perms, R.drawable.ic_info, "Accessibility service", this::onA11y);
+        divider(perms);
+        serverRow = row(perms, R.drawable.ic_tree, "Web server", this::onServer);
+        divider(perms);
+        overlayRow = row(perms, R.drawable.ic_drag, "Floating overlay", this::onOverlay);
+        divider(perms);
+        streamRow = row(perms, R.drawable.ic_camera, "Screen stream", this::onStream);
+        col.addView(perms, Ui.matchWrap(this, 8));
 
-        LinearLayout pc = Ui.card(this);
-        pc.addView(Ui.text(this, "Screen stream", 17, Ui.TEXT, true));
-        pc.addView(Ui.text(this, Build.VERSION.SDK_INT < 30
-                ? "Required on Android 10 and below"
-                : "Optional · smooth live screen in web control mode", 13, Ui.TEXT_2, false));
-        pc.addView(Ui.pill(this, "Grant", false, v ->
-                startActivity(new Intent(this, ProjectionRequestActivity.class))), Ui.matchWrap(this, 14));
-        projectionCard = pc;
-        col.addView(pc, Ui.matchWrap(this, 16));
-
+        col.addView(section("Data"));
         LinearLayout cc = Ui.card(this);
         cc.setOrientation(LinearLayout.HORIZONTAL);
         cc.setGravity(Gravity.CENTER_VERTICAL);
         cc.addView(leading(R.drawable.ic_folder));
         LinearLayout ct = new LinearLayout(this);
         ct.setOrientation(LinearLayout.VERTICAL);
-        ct.addView(Ui.text(this, "Captures", 17, Ui.TEXT, true));
+        ct.addView(Ui.text(this, "Captures", 16, Ui.TEXT, true));
         ct.addView(Ui.text(this, "Saved screenshots and hierarchies", 13, Ui.TEXT_2, false));
         cc.addView(ct, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         cc.addView(Ui.icon(this, R.drawable.ic_chevron_right, Ui.TEXT_2));
         cc.setBackground(Ui.ripple(Ui.rounded(Ui.SURFACE, Ui.dp(this, 24)), 0x141A56DB));
         cc.setOnClickListener(v -> startActivity(new Intent(this, CapturesActivity.class)));
-        col.addView(cc, Ui.matchWrap(this, 16));
+        col.addView(cc, Ui.matchWrap(this, 8));
 
         if (Build.VERSION.SDK_INT >= 33) {
-            TextView restricted = Ui.text(this, "Service greyed out? App info → ⋮ → Allow restricted settings",
+            TextView restricted = Ui.text(this, "Accessibility greyed out? App info → ⋮ → Allow restricted settings",
                     13, Ui.PRIMARY, false);
             restricted.setPadding(Ui.dp(this, 4), Ui.dp(this, 20), Ui.dp(this, 4), 0);
             restricted.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
@@ -134,12 +112,20 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        running = ECAccessibilityService.get() != null;
+        refresh();
+    }
+
+    private void refresh() {
+        ECAccessibilityService svc = ECAccessibilityService.get();
+        boolean a11y = svc != null;
+        boolean server = a11y && svc.isServerRunning();
+        boolean stream = ProjectionService.isRunning();
+
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                running ? new int[]{0xFF1A56DB, 0xFF3B82F6} : new int[]{0xFF475569, 0xFF64748B});
+                server ? new int[]{0xFF1A56DB, 0xFF3B82F6} : new int[]{0xFF475569, 0xFF64748B});
         bg.setCornerRadius(Ui.dp(this, 28));
         hero.setBackground(bg);
-        if (running) {
+        if (server) {
             statusTitle.setText("Running");
             StringBuilder sb = new StringBuilder();
             for (String ip : localIps()) {
@@ -147,19 +133,101 @@ public class MainActivity extends Activity {
                 sb.append("http://").append(ip).append(':').append(ECAccessibilityService.PORT);
             }
             statusSub.setText(sb.length() > 0 ? sb : "http://localhost:" + ECAccessibilityService.PORT);
-            heroAction.setText("Settings");
+        } else if (a11y) {
+            statusTitle.setText("Server off");
+            statusSub.setText("Turn on the web server below");
         } else {
             statusTitle.setText("Service off");
-            statusSub.setText("Enable ElementCheck in Accessibility");
-            heroAction.setText("Enable");
+            statusSub.setText("Turn on the accessibility service below");
         }
-        heroAction.setTextColor(running ? Ui.PRIMARY : 0xFF475569);
-        overlaySwitch.setChecked(Prefs.overlayEnabled(this));
-        projectionCard.setVisibility(ProjectionService.isRunning() ? View.GONE : View.VISIBLE);
+
+        binding = true;
+        a11yRow.sw.setChecked(a11y);
+        a11yRow.sub.setText(a11y ? "On · reads UI, captures screen, gestures" : "Off · required for all features");
+
+        serverRow.sw.setChecked(server);
+        serverRow.sw.setEnabled(a11y);
+        serverRow.sub.setText(server ? "On · port " + ECAccessibilityService.PORT + " on local network" : "Off");
+
+        boolean overlay = Prefs.overlayEnabled(this);
+        overlayRow.sw.setChecked(overlay);
+        overlayRow.sw.setEnabled(a11y);
+        overlayRow.sub.setText(overlay ? "On · capture button over apps" : "Off");
+
+        streamRow.sw.setChecked(stream);
+        streamRow.sw.setEnabled(a11y);
+        streamRow.sub.setText(stream ? "On · stops after 5 min idle"
+                : Build.VERSION.SDK_INT < 30 ? "Off · needed for screenshots on Android 10 and below"
+                : "Off · optional, smoother live control");
+        binding = false;
+    }
+
+    private void onA11y(CompoundButton b, boolean on) {
+        ECAccessibilityService svc = ECAccessibilityService.get();
+        if (on || svc == null || !svc.turnOff()) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        }
+        b.postDelayed(this::refresh, 400);
+    }
+
+    private void onServer(CompoundButton b, boolean on) {
+        ECAccessibilityService svc = ECAccessibilityService.get();
+        if (svc != null) svc.setServerEnabled(on);
+        b.postDelayed(this::refresh, 200);
+    }
+
+    private void onOverlay(CompoundButton b, boolean on) {
+        Prefs.setOverlayEnabled(this, on);
+        ECAccessibilityService svc = ECAccessibilityService.get();
+        if (svc != null) svc.setOverlayVisible(on);
+        refresh();
+    }
+
+    private void onStream(CompoundButton b, boolean on) {
+        if (on) startActivity(new Intent(this, ProjectionRequestActivity.class));
+        else ProjectionService.stop(this);
+        b.postDelayed(this::refresh, 300);
+    }
+
+    private Row row(LinearLayout parent, int icon, String title, CompoundButton.OnCheckedChangeListener l) {
+        Row r = new Row();
+        LinearLayout line = new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(Ui.dp(this, 16), Ui.dp(this, 12), Ui.dp(this, 12), Ui.dp(this, 12));
+        line.addView(leading(icon));
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(Ui.text(this, title, 16, Ui.TEXT, true));
+        r.sub = Ui.text(this, "", 13, Ui.TEXT_2, false);
+        texts.addView(r.sub);
+        line.addView(texts, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        r.sw = new Switch(this);
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        r.sw.setThumbTintList(new ColorStateList(states, new int[]{Ui.PRIMARY, 0xFFFFFFFF}));
+        r.sw.setTrackTintList(new ColorStateList(states, new int[]{0xFF9DB8F2, 0xFFCBD5E1}));
+        r.sw.setOnCheckedChangeListener((b, on) -> { if (!binding) l.onCheckedChanged(b, on); });
+        line.addView(r.sw);
+        line.setOnClickListener(v -> { if (r.sw.isEnabled()) r.sw.toggle(); });
+        parent.addView(line);
+        return r;
+    }
+
+    private void divider(LinearLayout parent) {
+        View v = new View(this);
+        v.setBackgroundColor(Ui.OUTLINE);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1);
+        lp.leftMargin = Ui.dp(this, 76);
+        parent.addView(v, lp);
+    }
+
+    private TextView section(String title) {
+        TextView t = Ui.text(this, title, 13, Ui.TEXT_2, true);
+        t.setPadding(Ui.dp(this, 8), Ui.dp(this, 24), 0, 0);
+        return t;
     }
 
     private View leading(int icon) {
-        android.widget.ImageView iv = Ui.iconButton(this, icon, Ui.PRIMARY, Ui.PRIMARY_SOFT, null);
+        ImageView iv = Ui.iconButton(this, icon, Ui.PRIMARY, Ui.PRIMARY_SOFT, null);
         iv.setClickable(false);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44));
         lp.rightMargin = Ui.dp(this, 16);
@@ -167,8 +235,8 @@ public class MainActivity extends Activity {
         return iv;
     }
 
-    private static java.util.List<String> localIps() {
-        java.util.List<String> out = new java.util.ArrayList<>();
+    private static List<String> localIps() {
+        List<String> out = new ArrayList<>();
         try {
             for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 if (!ni.isUp() || ni.isLoopback()) continue;

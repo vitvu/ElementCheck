@@ -115,6 +115,7 @@ final class WebSocketSession {
     private synchronized void setStreaming(boolean on) {
         if (on == streaming) return;
         streaming = on;
+        if (on) ProjectionService.streamStarted(); else ProjectionService.streamStopped();
         if (on) {
             streamThread = new Thread(this::streamLoop, "ws-stream");
             streamThread.start();
@@ -230,7 +231,6 @@ final class WebSocketSession {
             out.flush();
         } catch (IOException e) {
             open = false;
-            streaming = false;
         }
     }
 

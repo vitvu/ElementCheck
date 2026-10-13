@@ -30,7 +30,12 @@ import java.nio.ByteBuffer;
 public class ProjectionService extends Service {
     static final String EXTRA_CODE = "code";
     static final String EXTRA_DATA = "data";
+    static final String ACTION_STOP = "com.vvtool.elementcheck.STOP_STREAM";
     private static final String CHANNEL = "capture";
+    private static final long IDLE_STOP_MS = 5 * 60 * 1000;
+
+    private static final java.util.concurrent.atomic.AtomicInteger streamers = new java.util.concurrent.atomic.AtomicInteger();
+    private static volatile long lastUse;
 
     private static volatile ProjectionService instance;
 
@@ -47,11 +52,34 @@ public class ProjectionService extends Service {
 
     static ProjectionService get() { return instance; }
 
+    static void stop(Context c) {
+        c.stopService(new Intent(c, ProjectionService.class));
+    }
+
+    static void streamStarted() { streamers.incrementAndGet(); lastUse = System.currentTimeMillis(); }
+
+    static void streamStopped() { streamers.decrementAndGet(); lastUse = System.currentTimeMillis(); }
+
+    private final Runnable idleCheck = new Runnable() {
+        @Override
+        public void run() {
+            if (streamers.get() <= 0 && System.currentTimeMillis() - lastUse > IDLE_STOP_MS) {
+                stopSelf();
+                return;
+            }
+            handler.postDelayed(this, 30_000);
+        }
+    };
+
     @Override public IBinder onBind(Intent intent) { return null; }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startAsForeground();
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         if (intent == null || projection != null) return START_NOT_STICKY;
         int code = intent.getIntExtra(EXTRA_CODE, Activity.RESULT_CANCELED);
         Intent data = intent.getParcelableExtra(EXTRA_DATA);
@@ -72,6 +100,8 @@ public class ProjectionService extends Service {
             @Override public void onStop() { stopSelf(); }
         }, handler);
         setupDisplay();
+        lastUse = System.currentTimeMillis();
+        handler.postDelayed(idleCheck, 30_000);
         instance = this;
         return START_NOT_STICKY;
     }
@@ -85,9 +115,16 @@ public class ProjectionService extends Service {
         } else {
             b = new Notification.Builder(this);
         }
-        Notification n = b.setSmallIcon(android.R.drawable.ic_menu_camera)
-                .setContentTitle("ElementCheck")
-                .setContentText("Screen capture ready")
+        int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE;
+        android.app.PendingIntent open = android.app.PendingIntent.getActivity(this, 0,
+                new Intent(this, MainActivity.class), flags);
+        android.app.PendingIntent stop = android.app.PendingIntent.getService(this, 1,
+                new Intent(this, ProjectionService.class).setAction(ACTION_STOP), flags);
+        Notification n = b.setSmallIcon(R.drawable.ic_camera)
+                .setContentTitle("Screen stream on")
+                .setContentText("Stops automatically after 5 min idle")
+                .setContentIntent(open)
+                .addAction(new Notification.Action.Builder(null, "Stop", stop).build())
                 .setOngoing(true)
                 .build();
         if (Build.VERSION.SDK_INT >= 29) {
@@ -137,6 +174,7 @@ public class ProjectionService extends Service {
     }
 
     Bitmap grab() {
+        lastUse = System.currentTimeMillis();
         Point size = realSize();
         if (size.x != width || size.y != height) {
             final Object done = new Object();
@@ -167,6 +205,7 @@ public class ProjectionService extends Service {
     @Override
     public void onDestroy() {
         instance = null;
+        if (handler != null) handler.removeCallbacks(idleCheck);
         synchronized (lock) {
             if (latest != null) { latest.close(); latest = null; }
         }

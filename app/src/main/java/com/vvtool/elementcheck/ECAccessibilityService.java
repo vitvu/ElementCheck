@@ -59,8 +59,7 @@ public class ECAccessibilityService extends AccessibilityService {
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
-        server = new HttpServer(this, PORT);
-        server.start();
+        if (Prefs.serverEnabled(this)) startServer();
         overlay = new OverlayController(this);
         if (Prefs.overlayEnabled(this)) overlay.show();
     }
@@ -94,9 +93,37 @@ public class ECAccessibilityService extends AccessibilityService {
         if (instance == this) instance = null;
         if (server != null) { server.stop(); server = null; }
         if (overlay != null) { overlay.hide(); overlay = null; }
+        ProjectionService.stop(this);
         latest = null;
         worker.shutdownNow();
         shotExecutor.shutdownNow();
+    }
+
+    private void startServer() {
+        if (server != null) return;
+        server = new HttpServer(this, PORT);
+        server.start();
+    }
+
+    boolean isServerRunning() { return server != null; }
+
+    void setServerEnabled(boolean on) {
+        Prefs.setServerEnabled(this, on);
+        if (on) {
+            startServer();
+        } else if (server != null) {
+            server.stop();
+            server = null;
+            ProjectionService.stop(this);
+        }
+    }
+
+    /** Turns the accessibility service off without leaving the app (API 24+). */
+    boolean turnOff() {
+        if (Build.VERSION.SDK_INT < 24) return false;
+        ProjectionService.stop(this);
+        disableSelf();
+        return true;
     }
 
     void setOverlayVisible(boolean visible) {
