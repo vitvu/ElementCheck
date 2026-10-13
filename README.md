@@ -1,64 +1,45 @@
 # ElementCheck
 
-Android UI inspector chạy native trên điện thoại (Java thuần, không thư viện ngoài, APK ~125 KB).
-Dùng **AccessibilityService** để đọc toàn bộ cây phần tử, chụp màn hình, hiện overlay nổi, và mở
-**web inspector trên cổng 8765** để xem/điều khiển từ máy tính.
+On-device Android UI inspector. An accessibility service that captures the screen together with the full view hierarchy and serves a web inspector on port `8765`.
 
-Hỗ trợ **Android 6.0 (API 23) → Android 17 (API 37)**.
+- Native Java, no third-party dependencies (~120 KB APK)
+- Android 6.0 – 17 (API 23–37)
+- Floating overlay: capture, collapse, close
+- Web inspector: screenshot with element bounds, properties, hierarchy tree, XPath search, copy XML
+- Saved captures viewable in the app and on the web
+- Remote tap / swipe / back / home / recents
 
-## Tính năng
+## Build
 
-**Trên điện thoại**
-- Overlay nổi kéo thả được (không cần quyền "hiển thị trên ứng dụng khác"):
-  `EC` = kéo / chạm để thu gọn · `◉` = Capture · `☰` = mở app
-- Capture = ảnh màn hình + toàn bộ node tại cùng thời điểm, lưu trong bộ nhớ app
-- Xem lại capture ngay trong app: chạm vào phần tử để xem chi tiết (chạm lần nữa để chọn phần tử chồng bên dưới)
+```bash
+./gradlew assembleRelease
+```
 
-**Web (`http://<ip-điện-thoại>:8765`)**
-- Trái: màn hình + khung trong suốt của từng phần tử (xanh lá = clickable), hover/click để chọn
-- Giữa: cây node (tất cả các cửa sổ: app, bàn phím, system bar, dialog…), cuộn ảo hoá nên mượt với cây lớn
-- Phải: chi tiết node — class, resource-id, text, content-desc, hint, tooltip, pane title, state description,
-  bounds, bounds in parent, size, center, index, depth, drawing order, window, 24 cờ trạng thái
-  (clickable, focusable, scrollable, editable, password, visible…), input type, selection, collection/range info,
-  actions, extras, đường dẫn cha
-- Locator tự sinh kèm kiểm tra độ duy nhất: XPath theo id/text/desc/kết hợp/indexed/absolute, UiSelector, Appium id, accessibility id. Bấm vào giá trị để copy
-- Tìm theo text/id/desc/class hoặc chạy **XPath** trực tiếp (định dạng tương thích uiautomator dump)
-- **Realtime**: tự cập nhật khi màn hình thay đổi
-- **Control**: bấm lên ảnh = tap thật, kéo = swipe, giữ = long press; nút Back/Home/Recents/Notifications;
-  thao tác trên node: click, long click, tap, focus, scroll, show on screen, set text
-- Mở các capture đã lưu trên máy; tải JSON / XML (uiautomator) / ảnh
+## Usage
 
-Phím tắt: `R` refresh · `L` realtime · `C` capture · `T` control · `↑↓←→` duyệt cây · `Esc` bỏ chọn
+1. Install the APK and enable **ElementCheck** in *Settings → Accessibility*.
+   On Android 13+, sideloaded apps may need *App info → ⋮ → Allow restricted settings* first.
+2. Open `http://<device-ip>:8765`, or over USB:
 
-## Cài đặt & sử dụng
+```bash
+adb forward tcp:8765 tcp:8765
+```
 
-1. Build: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk` (ký bằng debug key, cài được ngay)
-2. Mở app → **Mở cài đặt Trợ năng** → bật **ElementCheck**.
-   - Android 13+ nếu bị mờ "Restricted setting": Thông tin ứng dụng → ⋮ → *Allow restricted settings*.
-   - Android 6–10: bấm **Cấp quyền chụp màn hình** (MediaProjection) — Android 11+ không cần.
-3. Truy cập web:
-   - Cùng Wi-Fi: `http://<ip-điện-thoại>:8765` (IP hiện trong app)
-   - Qua USB: `adb forward tcp:8765 tcp:8765` rồi mở `http://localhost:8765`
+Android 10 and below require a one-time screen capture grant from the app.
 
 ## API
 
-| Method | Path | Mô tả |
+| Method | Endpoint | |
 |---|---|---|
-| GET | `/api/info` | Thông tin thiết bị |
-| GET | `/api/version` | Bộ đếm thay đổi UI (cho realtime) |
-| GET | `/api/snapshot?scale=0.5&q=70&img=1` | Chụp + dump cây (JSON) |
-| GET | `/api/screen.jpg` | Ảnh của snapshot gần nhất |
-| POST | `/api/capture` | Chụp đầy đủ + lưu |
-| GET | `/api/captures` | Danh sách capture |
-| GET | `/api/captures/<id>/tree.json` \| `screen.jpg` | Dữ liệu capture |
-| DELETE | `/api/captures/<id>` | Xoá capture |
-| POST | `/api/action` | `{seq, i, action, text}` — thao tác trên node |
-| POST | `/api/global` | `{action: back\|home\|recents\|notifications\|quickSettings\|power\|lock}` |
-| POST | `/api/gesture` | `{type: tap\|long\|swipe, x, y, x2, y2, duration}` (Android 7+) |
+| GET | `/api/info` | Device info |
+| GET | `/api/snapshot?scale=0.6&q=80` | Screenshot + hierarchy (JSON) |
+| GET | `/api/screen.jpg` | Image of the last snapshot |
+| POST | `/api/capture` | Capture and save on device |
+| GET | `/api/captures` | List saved captures |
+| GET | `/api/captures/{id}/tree.json` | Saved hierarchy |
+| GET | `/api/captures/{id}/screen.jpg` | Saved screenshot |
+| DELETE | `/api/captures/{id}` | Delete capture |
+| POST | `/api/gesture` | `{"type":"tap\|long\|swipe","x":0,"y":0,"x2":0,"y2":0,"duration":0}` |
+| POST | `/api/global` | `{"action":"back\|home\|recents"}` |
 
-## Ghi chú
-
-- Server không có xác thực: chỉ dùng trong mạng tin cậy, hoặc qua `adb forward`.
-- Chụp màn hình: Android 11+ dùng `AccessibilityService.takeScreenshot` (giới hạn ~3 ảnh/giây);
-  Android 6–10 dùng MediaProjection.
-- Gesture (tap/swipe) cần Android 7+; các action trên node hoạt động trên mọi phiên bản.
+The server has no authentication. Use it on trusted networks or via `adb forward`.

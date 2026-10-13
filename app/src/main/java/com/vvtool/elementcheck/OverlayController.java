@@ -1,12 +1,10 @@
 package com.vvtool.elementcheck;
 
 import android.annotation.SuppressLint;
-import android.content.Intent;
-import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.drawable.GradientDrawable;
-import android.util.TypedValue;
+import android.graphics.drawable.LayerDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -15,16 +13,12 @@ import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-/**
- * Floating draggable toolbar. Uses TYPE_ACCESSIBILITY_OVERLAY, so no
- * "draw over other apps" permission is needed on any Android version.
- */
 final class OverlayController {
     private final ECAccessibilityService svc;
     private final WindowManager wm;
     private final WindowManager.LayoutParams lp;
     private final LinearLayout root;
-    private final TextView captureBtn, appBtn;
+    private final View captureBtn, closeBtn;
     private boolean added;
     private boolean collapsed;
 
@@ -37,40 +31,37 @@ final class OverlayController {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
         lp.x = Prefs.overlayX(svc);
         lp.y = Prefs.overlayY(svc);
 
         root = new LinearLayout(svc);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-        root.setGravity(Gravity.CENTER_VERTICAL);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xE60F172A);
-        bg.setCornerRadius(dp(24));
-        bg.setStroke(dp(1), 0x553B82F6);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER_HORIZONTAL);
+        GradientDrawable bg = Ui.rounded(0xF7FFFFFF, dp(30));
+        bg.setStroke(dp(1), Ui.OUTLINE);
         root.setBackground(bg);
-        root.setPadding(dp(4), dp(4), dp(4), dp(4));
+        root.setElevation(dp(6));
+        root.setPadding(dp(6), dp(6), dp(6), dp(6));
 
-        TextView handle = button("EC", 0xFF2563EB);
-        captureBtn = button("◉", 0xFFDC2626);   // ◉ capture
-        appBtn = button("☰", 0xFF334155);       // ☰ open app
-        root.addView(handle);
-        root.addView(captureBtn);
-        root.addView(appBtn);
+        TextView grip = glyph("∷", Ui.PRIMARY, Ui.PRIMARY_SOFT);
+        captureBtn = shutter();
+        closeBtn = glyph("✕", Ui.TEXT_2, 0xFFF1F5F9);
+        root.addView(grip, size(44, 0));
+        root.addView(captureBtn, size(52, 6));
+        root.addView(closeBtn, size(36, 6));
 
         captureBtn.setOnClickListener(v -> {
-            v.animate().scaleX(0.8f).scaleY(0.8f).setDuration(80)
-                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(80)).start();
+            v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(90)
+                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(90)).start();
             svc.captureFromOverlay();
         });
-        appBtn.setOnClickListener(v -> svc.startActivity(new Intent(svc, MainActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
+        closeBtn.setOnClickListener(v -> svc.setOverlayVisible(false));
 
         final int slop = ViewConfiguration.get(svc).getScaledTouchSlop();
-        handle.setOnTouchListener(new View.OnTouchListener() {
+        grip.setOnTouchListener(new View.OnTouchListener() {
             float downX, downY;
             int startX, startY;
             boolean dragging;
@@ -108,7 +99,7 @@ final class OverlayController {
         collapsed = !collapsed;
         int vis = collapsed ? View.GONE : View.VISIBLE;
         captureBtn.setVisibility(vis);
-        appBtn.setVisibility(vis);
+        closeBtn.setVisibility(vis);
     }
 
     void show() {
@@ -131,27 +122,38 @@ final class OverlayController {
         if (added) root.setVisibility(invisible ? View.INVISIBLE : View.VISIBLE);
     }
 
-    private TextView button(String label, int color) {
-        TextView t = new TextView(svc);
-        t.setText(label);
-        t.setTextColor(Color.WHITE);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+    private TextView glyph(String label, int color, int bgColor) {
+        TextView t = Ui.text(svc, label, 16, color, true);
         t.setGravity(Gravity.CENTER);
-        t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         GradientDrawable d = new GradientDrawable();
         d.setShape(GradientDrawable.OVAL);
-        d.setColor(color);
+        d.setColor(bgColor);
         t.setBackground(d);
-        int s = dp(42);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(s, s);
-        p.setMargins(dp(2), 0, dp(2), 0);
-        t.setLayoutParams(p);
         return t;
     }
 
-    private int dp(int v) {
-        return Math.round(v * svc.getResources().getDisplayMetrics().density);
+    private View shutter() {
+        GradientDrawable outer = new GradientDrawable();
+        outer.setShape(GradientDrawable.OVAL);
+        outer.setColor(Ui.PRIMARY);
+        GradientDrawable ring = new GradientDrawable();
+        ring.setShape(GradientDrawable.OVAL);
+        ring.setStroke(dp(2), 0xFFFFFFFF);
+        LayerDrawable ld = new LayerDrawable(new android.graphics.drawable.Drawable[]{outer, ring});
+        ld.setLayerInset(1, dp(7), dp(7), dp(7), dp(7));
+        View v = new View(svc);
+        v.setBackground(ld);
+        v.setClickable(true);
+        return v;
     }
+
+    private LinearLayout.LayoutParams size(int sizeDp, int topDp) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
+        p.topMargin = dp(topDp);
+        return p;
+    }
+
+    private int dp(int v) { return Ui.dp(svc, v); }
 
     private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(v, Math.max(lo, hi))); }
 }

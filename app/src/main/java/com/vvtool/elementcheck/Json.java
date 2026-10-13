@@ -1,6 +1,5 @@
 package com.vvtool.elementcheck;
 
-/** Minimal allocation-light JSON writer (faster than org.json for large trees). */
 final class Json {
     private final StringBuilder sb;
     private boolean needComma;
@@ -30,7 +29,6 @@ final class Json {
     Json put(String k, double v) { return key(k).val(v); }
     Json put(String k, boolean v) { return key(k).val(v); }
 
-    /** Writes the pair only when the value is non-empty. */
     Json opt(String k, CharSequence v) {
         if (v != null && v.length() > 0) put(k, v);
         return this;

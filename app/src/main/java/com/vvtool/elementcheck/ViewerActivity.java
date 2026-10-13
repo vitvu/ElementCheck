@@ -5,7 +5,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -27,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-/** Offline viewer: screenshot with node boxes; tap to inspect (tap again to cycle overlapping nodes). */
 public class ViewerActivity extends Activity {
     private static final String[] FLAGS = {"clickable", "longClickable", "checkable", "checked", "enabled",
             "focusable", "focused", "scrollable", "selected", "editable", "password", "visible"};
@@ -41,24 +39,33 @@ public class ViewerActivity extends Activity {
         String id = getIntent().getStringExtra("id");
         File dir = CaptureStore.dir(this, id);
         if (dir == null) { finish(); return; }
-        setTitle(id);
 
         view = new InspectView(this);
         details = new TextView(this);
         details.setTextIsSelectable(true);
-        details.setTextSize(12);
-        int p = Ui.dp(this, 10);
-        details.setPadding(p, p, p, p);
-        details.setText("Chạm vào phần tử trên ảnh để xem chi tiết.");
+        details.setTextSize(13);
+        details.setTextColor(Ui.TEXT);
+        details.setLineSpacing(0, 1.15f);
+        details.setText("Tap an element");
+        details.setTextColor(Ui.TEXT_2);
+        LinearLayout card = Ui.card(this);
+        card.addView(details);
         ScrollView sv = new ScrollView(this);
-        sv.addView(details);
+        sv.setClipToPadding(false);
+        int p = Ui.dp(this, 12);
+        sv.setPadding(p, p, p, 0);
+        sv.addView(card);
 
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.addView(view, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 3f));
+        col.setBackgroundColor(Ui.BG);
+        col.addView(Ui.header(this, id, null));
+        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 3f);
+        vp.setMargins(p, 0, p, 0);
+        col.addView(view, vp);
         col.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 2f));
-        Ui.padForSystemBars(col);
         setContentView(col);
+        Ui.edgeToEdge(this, col);
 
         new Thread(() -> load(dir), "viewer-load").start();
     }
@@ -90,7 +97,7 @@ public class ViewerActivity extends Activity {
             final Bitmap b = bmp;
             runOnUiThread(() -> view.set(b, sw, sh, nodes));
         } catch (Exception e) {
-            runOnUiThread(() -> details.setText("Lỗi đọc capture: " + e));
+            runOnUiThread(() -> details.setText("Failed to load: " + e));
         }
     }
 
@@ -128,6 +135,7 @@ public class ViewerActivity extends Activity {
             for (String f : FLAGS) if (f.equals(k)) { isFlag = true; break; }
             if (!isFlag) line(sb, k, String.valueOf(n.opt(k)));
         }
+        details.setTextColor(Ui.TEXT);
         details.setText(sb);
     }
 
@@ -136,10 +144,10 @@ public class ViewerActivity extends Activity {
         int s = sb.length();
         sb.append(k).append(": ");
         sb.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), s, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new android.text.style.ForegroundColorSpan(Ui.PRIMARY), s, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.append(v).append('\n');
     }
 
-    /** Draws the screenshot fitted to the view, plus node boxes. */
     private final class InspectView extends View {
         private Bitmap bmp;
         private int sw, sh;
@@ -154,9 +162,9 @@ public class ViewerActivity extends Activity {
 
         InspectView(Context c) {
             super(c);
-            setBackgroundColor(0xFF0F172A);
+            setBackground(Ui.rounded(0xFFE8EDF6, Ui.dp(ViewerActivity.this, 20)));
             thin.setStyle(Paint.Style.STROKE);
-            thin.setColor(0x5538BDF8);
+            thin.setColor(0x661A56DB);
             thin.setStrokeWidth(1);
             sel.setStyle(Paint.Style.STROKE);
             sel.setColor(0xFFF43F5E);
@@ -183,7 +191,6 @@ public class ViewerActivity extends Activity {
             float ox = (getWidth() - sw * scale) / 2f, oy = (getHeight() - sh * scale) / 2f;
             dst.set(ox, oy, ox + sw * scale, oy + sh * scale);
             if (bmp != null) c.drawBitmap(bmp, null, dst, null);
-            else c.drawColor(Color.DKGRAY);
             for (Rect r : rects) {
                 map(r, scale, ox, oy);
                 c.drawRect(tmp, thin);
@@ -214,7 +221,6 @@ public class ViewerActivity extends Activity {
                     Rect r = rects.get(i);
                     if (r.width() > 0 && r.height() > 0 && r.contains(x, y)) cycle.add(i);
                 }
-                // Smallest area first: the most specific element.
                 java.util.Collections.sort(cycle, (a, b) -> Long.compare(area(rects.get(a)), area(rects.get(b))));
                 cyclePos = 0;
             } else {

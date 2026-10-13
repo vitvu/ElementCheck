@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Tiny blocking HTTP/1.1 server (Connection: close) serving the web inspector and JSON API. */
 final class HttpServer {
     private static final int MAX_BODY = 1 << 20;
 
@@ -51,7 +50,6 @@ final class HttpServer {
     }
 
     private void acceptLoop() {
-        // Retry binding briefly: the previous service instance may still hold the port.
         for (int attempt = 0; attempt < 20 && socket == null; attempt++) {
             try {
                 ServerSocket s = new ServerSocket();
@@ -76,7 +74,6 @@ final class HttpServer {
         }
     }
 
-    // ---------------------------------------------------------------- request parsing
 
     private static final class Req {
         String method, path;
@@ -160,7 +157,6 @@ final class HttpServer {
         try { return URLDecoder.decode(s, "UTF-8"); } catch (Exception e) { return s; }
     }
 
-    // ---------------------------------------------------------------- routing
 
     private void route(Req r, OutputStream out) throws IOException {
         String p = r.path;
@@ -179,23 +175,13 @@ final class HttpServer {
                         .put("w", s.x).put("h", s.y)
                         .put("screenshot", ECAccessibilityService.canScreenshot())
                         .put("gestures", Build.VERSION.SDK_INT >= 24)
-                        .put("version", svc.version())
                         .endObj().toString());
                 return;
             }
-            case "/api/version":
-                sendJson(out, new Json(96).beginObj()
-                        .put("v", svc.version())
-                        .put("pkg", svc.currentPackage())
-                        .endObj().toString());
-                return;
             case "/api/snapshot": {
-                boolean img = !"0".equals(r.q("img", "1"));
-                float scale = clampF(r.qf("scale", 0.5f), 0.1f, 1f);
-                int quality = Math.max(10, Math.min(100, r.qi("q", 70)));
-                if (img && !ECAccessibilityService.canScreenshot()) svc.requestProjection();
-                ECAccessibilityService.Snapshot s = svc.snapshot(img, false, scale, quality);
-                sendJson(out, s.json);
+                float scale = clampF(r.qf("scale", 1f), 0.1f, 1f);
+                int quality = Math.max(10, Math.min(100, r.qi("q", 85)));
+                sendJson(out, svc.snapshot(false, scale, quality).json);
                 return;
             }
             case "/api/screen.jpg": {
@@ -206,9 +192,8 @@ final class HttpServer {
             }
             case "/api/capture": {
                 try {
-                    String[] res = svc.captureAndSave();
-                    sendJson(out, new Json(96).beginObj().put("id", res[0])
-                            .put("nodes", Integer.parseInt(res[1])).endObj().toString());
+                    ECAccessibilityService.Snapshot snap = svc.captureAndSave();
+                    sendJson(out, "{\"nodes\":" + snap.nodeCount + "}");
                 } catch (Exception e) {
                     sendError(out, 500, String.valueOf(e.getMessage()));
                 }
@@ -223,13 +208,6 @@ final class HttpServer {
                     j.beginObj().put("id", id).key("meta").raw(m).endObj();
                 }
                 sendJson(out, j.endArr().toString());
-                return;
-            }
-            case "/api/action": {
-                JSONObject b = r.json();
-                String err = svc.nodeAction(b.optLong("seq"), b.optInt("i", -1),
-                        b.optString("action"), b.optString("text", null));
-                result(out, err);
                 return;
             }
             case "/api/global":
@@ -247,7 +225,6 @@ final class HttpServer {
                 break;
         }
 
-        // /api/captures/<id>/<file>
         if (p.startsWith("/api/captures/")) {
             String[] seg = p.substring("/api/captures/".length()).split("/");
             File dir = CaptureStore.dir(svc, seg[0]);
@@ -290,7 +267,6 @@ final class HttpServer {
         }
     }
 
-    // ---------------------------------------------------------------- responses
 
     private static void result(OutputStream out, String err) throws IOException {
         if (err == null) sendJson(out, "{\"ok\":true}");

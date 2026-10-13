@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/** Saved captures: files/captures/&lt;id&gt;/{screen.jpg, tree.json, meta.json}. */
 final class CaptureStore {
     static final String IMG = "screen.jpg";
     static final String TREE = "tree.json";
@@ -46,7 +45,6 @@ final class CaptureStore {
         return id;
     }
 
-    /** Newest first. */
     static List<String> list(Context c) {
         String[] names = root(c).list();
         List<String> out = new ArrayList<>();

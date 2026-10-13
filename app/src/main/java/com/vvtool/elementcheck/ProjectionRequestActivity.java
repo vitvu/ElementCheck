@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
 import android.os.Bundle;
 
-/** Invisible activity that asks the user for screen-capture consent (Android 6-10 only). */
 public class ProjectionRequestActivity extends Activity {
     private static final int REQ = 1;
 

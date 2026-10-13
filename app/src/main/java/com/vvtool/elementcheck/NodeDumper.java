@@ -13,10 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-/**
- * Walks every interactive window and serialises the full accessibility tree to JSON.
- * Keeps the live AccessibilityNodeInfo objects (by flat index) so the web UI can act on them.
- */
 final class NodeDumper {
     private static final int MAX_NODES = 8000;
     private static final int MAX_DEPTH = 150;
@@ -81,11 +77,10 @@ final class NodeDumper {
 
     private NodeDumper(String ownPackage) { this.ownPackage = ownPackage; }
 
-    /** Result of a dump: JSON for "windows" array plus the live nodes, indexed by "i". */
     static final class Result {
         String windowsJson;
         String topPackage;
-        List<AccessibilityNodeInfo> nodes;
+        int nodeCount;
     }
 
     static Result dump(AccessibilityService svc) {
@@ -94,7 +89,8 @@ final class NodeDumper {
         Result res = new Result();
         res.windowsJson = d.j.toString();
         res.topPackage = top;
-        res.nodes = d.nodes;
+        res.nodeCount = d.nodes.size();
+        recycle(d.nodes);
         return res;
     }
 
@@ -106,7 +102,6 @@ final class NodeDumper {
         try { windows = svc.getWindows(); } catch (Exception ignored) { }
         if (windows != null && !windows.isEmpty()) {
             for (AccessibilityWindowInfo w : windows) {
-                // Skip our own floating toolbar.
                 if (w.getType() == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue;
                 AccessibilityNodeInfo root = null;
                 try { root = w.getRoot(); } catch (Exception ignored) { }
@@ -180,7 +175,6 @@ final class NodeDumper {
         j.key("bp"); bounds(r);
         j.put("win", n.getWindowId());
 
-        // Boolean state: only "true" values are written; the client defaults the rest to false.
         flag("checkable", n.isCheckable());
         flag("checked", n.isChecked());
         flag("clickable", n.isClickable());
@@ -264,6 +258,7 @@ final class NodeDumper {
         AccessibilityNodeInfo labeledBy = n.getLabeledBy();
         if (labeledBy != null) {
             j.opt("labeledBy", labeledBy.getViewIdResourceName());
+            if (Build.VERSION.SDK_INT < 33) labeledBy.recycle();
         }
 
         Bundle extras = n.getExtras();
@@ -314,7 +309,6 @@ final class NodeDumper {
     private static String str(CharSequence s) { return s == null ? "" : s.toString(); }
     private static CharSequence nz(CharSequence s) { return s == null ? "" : s; }
 
-    /** Makes a class name usable as an XML element / XPath step (e.g. "Foo$Bar" -> "Foo_Bar"). */
     static String xmlName(String cls) {
         if (cls.isEmpty()) return "node";
         StringBuilder sb = null;
@@ -347,8 +341,8 @@ final class NodeDumper {
         }
     }
 
-    static void recycle(List<AccessibilityNodeInfo> list) {
-        if (list == null || Build.VERSION.SDK_INT >= 33) return; // no-op on 33+
+    private static void recycle(List<AccessibilityNodeInfo> list) {
+        if (list == null || Build.VERSION.SDK_INT >= 33) return;
         for (AccessibilityNodeInfo n : list) {
             try { n.recycle(); } catch (Exception ignored) { }
         }

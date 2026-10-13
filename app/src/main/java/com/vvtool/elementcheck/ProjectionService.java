@@ -26,10 +26,7 @@ import android.view.WindowManager;
 
 import java.nio.ByteBuffer;
 
-/**
- * Screen capture fallback for Android 6-10 (API 23-29), where
- * AccessibilityService#takeScreenshot does not exist. Keeps the most recent frame only.
- */
+/** MediaProjection capture for API 23-29, where AccessibilityService#takeScreenshot is unavailable. */
 public class ProjectionService extends Service {
     static final String EXTRA_CODE = "code";
     static final String EXTRA_DATA = "data";
@@ -138,11 +135,9 @@ public class ProjectionService extends Service {
         }
     }
 
-    /** Returns a copy of the most recent frame, or null. Safe to call from any thread. */
     Bitmap grab() {
         Point size = realSize();
         if (size.x != width || size.y != height) {
-            // Rotation changed: rebuild the reader on the projection thread and wait for a frame.
             final Object done = new Object();
             synchronized (done) {
                 handler.post(() -> { setupDisplay(); synchronized (done) { done.notifyAll(); } });
