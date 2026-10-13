@@ -26,7 +26,7 @@ import android.view.WindowManager;
 
 import java.nio.ByteBuffer;
 
-/** MediaProjection capture for API 23-29, where AccessibilityService#takeScreenshot is unavailable. */
+/** MediaProjection capture: required on API 23-29, optional on 30+ for a smooth, change-driven stream. */
 public class ProjectionService extends Service {
     static final String EXTRA_CODE = "code";
     static final String EXTRA_DATA = "data";
@@ -119,6 +119,7 @@ public class ProjectionService extends Service {
                 if (latest != null) latest.close();
                 latest = img;
             }
+            Signals.changed();
         }, handler);
         if (display == null) {
             display = projection.createVirtualDisplay("ElementCheck", width, height, dm.densityDpi,

@@ -708,6 +708,10 @@
     resizeTimer = setTimeout(() => { layoutScreen(); paintTree(); }, 100);
   });
 
+  document.addEventListener('visibilitychange', () => {
+    if (S.mode === 'control') send({ t: 'stream', on: !document.hidden, scale: 0.5 });
+  });
+
   renderProps();
   wsConnect();
   setTimeout(refresh, 300);

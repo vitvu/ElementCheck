@@ -67,6 +67,7 @@ public class ECAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
+        if (!ProjectionService.isRunning()) Signals.changed();
         if (e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence p = e.getPackageName(), c = e.getClassName();
         if (p != null && !getPackageName().contentEquals(p)) {
@@ -228,13 +229,14 @@ public class ECAccessibilityService extends AccessibilityService {
             sleep(120);
         }
         try {
+            ProjectionService ps = ProjectionService.get();
+            if (ps != null) return ps.grab();
             if (Build.VERSION.SDK_INT >= 30) {
                 Bitmap b = takeScreenshotSync();
                 if (b == null) { sleep(350); b = takeScreenshotSync(); }
                 return b;
             }
-            ProjectionService ps = ProjectionService.get();
-            return ps == null ? null : ps.grab();
+            return null;
         } catch (Exception e) {
             return null;
         } finally {

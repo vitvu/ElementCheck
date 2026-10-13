@@ -84,8 +84,10 @@ public class MainActivity extends Activity {
         col.addView(overlayCard, Ui.matchWrap(this, 16));
 
         LinearLayout pc = Ui.card(this);
-        pc.addView(Ui.text(this, "Screen capture", 17, Ui.TEXT, true));
-        pc.addView(Ui.text(this, "Required on Android 10 and below", 13, Ui.TEXT_2, false));
+        pc.addView(Ui.text(this, "Screen stream", 17, Ui.TEXT, true));
+        pc.addView(Ui.text(this, Build.VERSION.SDK_INT < 30
+                ? "Required on Android 10 and below"
+                : "Optional · smooth live screen in web control mode", 13, Ui.TEXT_2, false));
         pc.addView(Ui.pill(this, "Grant", false, v ->
                 startActivity(new Intent(this, ProjectionRequestActivity.class))), Ui.matchWrap(this, 14));
         projectionCard = pc;
@@ -153,7 +155,7 @@ public class MainActivity extends Activity {
         }
         heroAction.setTextColor(running ? Ui.PRIMARY : 0xFF475569);
         overlaySwitch.setChecked(Prefs.overlayEnabled(this));
-        projectionCard.setVisibility(Build.VERSION.SDK_INT < 30 && !ProjectionService.isRunning() ? View.VISIBLE : View.GONE);
+        projectionCard.setVisibility(ProjectionService.isRunning() ? View.GONE : View.VISIBLE);
     }
 
     private View leading(int icon) {

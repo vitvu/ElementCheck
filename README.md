@@ -25,7 +25,7 @@ On-device Android UI inspector. An accessibility service that captures the scree
 adb forward tcp:8765 tcp:8765
 ```
 
-Android 10 and below require a one-time screen capture grant from the app.
+Android 10 and below require a screen capture grant from the app. On Android 11+ it is optional and makes the control-mode stream smoother (frames at display rate, only when the screen changes).
 
 ## API
 
@@ -54,7 +54,7 @@ Text frames are JSON requests with an optional `id`, answered by `{"t":"ok"|"err
 | `{"t":"gesture",...}` | Same fields as `/api/gesture` |
 | `{"t":"global","action":"back"}` | `back`, `home`, `recents`, `notifications` |
 | `{"t":"text","text":"..."}` / `{"t":"text","enter":true}` | Type into the focused field |
-| `{"t":"stream","on":true,"scale":0.5}` | Screen stream; reply `{"t":"ack"}` after each frame |
+| `{"t":"stream","on":true,"scale":0.5}` | Change-driven screen stream; reply `{"t":"ack"}` after each frame |
 
 Binary frames: first byte `1` = snapshot image, `2` = stream frame, followed by JPEG data.
 

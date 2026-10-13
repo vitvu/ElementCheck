@@ -86,20 +86,24 @@ final class WebSocketSession {
                 return;
             }
             case "gesture":
+                Signals.burst(1500);
                 err = svc.gesture(m.optString("type"),
                         (float) m.optDouble("x"), (float) m.optDouble("y"),
                         (float) m.optDouble("x2", 0), (float) m.optDouble("y2", 0),
                         m.optLong("duration", 0));
                 break;
             case "global":
+                Signals.burst(1500);
                 err = svc.globalAction(m.optString("action"));
                 break;
             case "text":
+                Signals.burst(800);
                 err = svc.inputText(m.optString("text"), m.optBoolean("enter"));
                 break;
             case "stream":
                 streamScale = clamp((float) m.optDouble("scale", 0.5), 0.1f, 1f);
                 setStreaming(m.optBoolean("on"));
+                if (streaming) Signals.burst(300);
                 break;
             default:
                 err = "unknown message";
@@ -116,11 +120,14 @@ final class WebSocketSession {
             streamThread.start();
         } else if (streamThread != null) {
             synchronized (ackLock) { awaitingAck = false; ackLock.notifyAll(); }
+            Signals.wake();
             streamThread = null;
         }
     }
 
     private void streamLoop() {
+        long seen = -1;
+        int lastHash = 0;
         while (streaming && open) {
             synchronized (ackLock) {
                 long until = System.currentTimeMillis() + 3000;
@@ -130,12 +137,16 @@ final class WebSocketSession {
                     try { ackLock.wait(left); } catch (InterruptedException e) { return; }
                 }
             }
+            long v;
+            try { v = Signals.await(seen, 1000); } catch (InterruptedException e) { return; }
             if (!streaming || !open) break;
-            byte[] jpeg = svc.frame(streamScale, 60);
-            if (jpeg == null) {
-                try { Thread.sleep(500); } catch (InterruptedException e) { return; }
-                continue;
-            }
+            if (v < 0) continue;
+            seen = v;
+            byte[] jpeg = svc.frame(streamScale, 70);
+            if (jpeg == null) continue;
+            int hash = java.util.Arrays.hashCode(jpeg);
+            if (hash == lastHash) continue;
+            lastHash = hash;
             awaitingAck = true;
             sendBinary(IMG_STREAM, jpeg);
         }
