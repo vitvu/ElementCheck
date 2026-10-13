@@ -1,5 +1,11 @@
 # ElementCheck
 
+[![Release](https://img.shields.io/github/v/release/vitvu/ElementCheck)](https://github.com/vitvu/ElementCheck/releases/latest)
+![Android](https://img.shields.io/badge/Android-6.0%E2%80%9317-3DDC84?logo=android&logoColor=white)
+![API](https://img.shields.io/badge/API-23%2B-1A56DB)
+
+**[Download APK](https://github.com/vitvu/ElementCheck/releases/latest)**
+
 On-device Android UI inspector. An accessibility service that captures the screen together with the full view hierarchy and serves a web inspector on port `8765`.
 
 - Native Java, no third-party dependencies (~140 KB APK)
