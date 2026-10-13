@@ -11,7 +11,7 @@
     data: null, source: 'live', img: null, nodes: [], wins: [],
     selected: null, hover: null, collapsed: new Set(), rows: [],
     matches: [], matchSet: new Set(), matchPos: -1, xml: null,
-    mode: 'inspect', cycle: [], cyclePos: 0, cycleAt: null, busy: false, captures: [],
+    mode: 'inspect', cycle: [], cyclePos: 0, cycleAt: null, busy: false, captures: [], saved: [],
   };
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -500,6 +500,19 @@
     }
     S.rows = rows;
     treeInner.style.height = rows.length * ROW_H + 'px';
+    let maxW = 0;
+    for (const r of rows) {
+      let chars;
+      if (r.w) chars = 12 + (r.w.root.pkg || r.w.title || '').length;
+      else {
+        const n = r.n;
+        chars = shortCls(n.cls).length + (n.rid ? shortId(n.rid).length + 3 : 0)
+          + (n.text ? Math.min(n.text.length, 60) + 4 : n.desc ? Math.min(n.desc.length, 60) + 2 : 0)
+          + (n.scrollable ? 8 : 0) + (n.editable ? 6 : 0) + (n.checkable ? 9 : 0);
+      }
+      maxW = Math.max(maxW, 4 + r.depth * 14 + 18 + chars * 7.6 + 24);
+    }
+    treeInner.style.width = Math.ceil(maxW) + 'px';
   }
 
   function renderTree() { buildRows(); paintTree(); }
@@ -574,6 +587,8 @@
       if (y < treeEl.scrollTop || y > treeEl.scrollTop + treeEl.clientHeight - ROW_H * 2) {
         treeEl.scrollTop = y - treeEl.clientHeight / 3;
       }
+      const x = 4 + S.rows[k].depth * 14;
+      if (x < treeEl.scrollLeft || x > treeEl.scrollLeft + treeEl.clientWidth - 120) treeEl.scrollLeft = Math.max(0, x - 40);
     }
     paintTree();
   }
@@ -584,6 +599,8 @@
     if (!fromScreen) S.cycleAt = null;
     drawBoxes();
     renderProps();
+    $('btnSaveNode').disabled = !n;
+    renderSaved();
   }
 
   // props
@@ -686,6 +703,7 @@
     const n = S.selected;
     if (e.key === 'Escape') { if (!$('capModal').classList.contains('hidden')) closeCaptures(); else select(null, false); }
     else if (e.key === 'r') refresh();
+    else if (e.key === 's' && n) saveNode();
     else if (n && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       const d = e.key === 'ArrowDown' ? 1 : -1;
       for (let j = S.rows.findIndex((r) => r.n === n) + d; j >= 0 && j < S.rows.length; j += d) {
@@ -712,7 +730,175 @@
     if (S.mode === 'control') send({ t: 'stream', on: !document.hidden, scale: 0.5 });
   });
 
+  // resizable columns
+
+  const mainEl = document.querySelector('main');
+  const widths = (() => {
+    try { return JSON.parse(localStorage.getItem('ec.widths')) || [340, 420]; } catch (e) { return [340, 420]; }
+  })();
+  function applyWidths() {
+    mainEl.style.setProperty('--w0', widths[0] + 'px');
+    mainEl.style.setProperty('--w1', widths[1] + 'px');
+  }
+  applyWidths();
+  let relayout = 0;
+  document.querySelectorAll('.gutter').forEach((g) => {
+    g.addEventListener('pointerdown', (e) => {
+      const i = +g.dataset.gutter, startX = e.clientX, start = widths[i];
+      const total = mainEl.clientWidth - 48;
+      g.setPointerCapture(e.pointerId);
+      g.classList.add('drag');
+      document.body.classList.add('resizing');
+      const move = (ev) => {
+        widths[i] = Math.max(240, Math.min(start + ev.clientX - startX, total - widths[1 - i] - 220));
+        applyWidths();
+        if (!relayout) relayout = requestAnimationFrame(() => { relayout = 0; layoutScreen(); paintTree(); });
+      };
+      g.addEventListener('pointermove', move);
+      g.addEventListener('pointerup', () => {
+        g.removeEventListener('pointermove', move);
+        g.classList.remove('drag');
+        document.body.classList.remove('resizing');
+        try { localStorage.setItem('ec.widths', JSON.stringify(widths)); } catch (err) { /* ignore */ }
+        layoutScreen();
+      }, { once: true });
+    });
+    g.addEventListener('dblclick', () => { widths[0] = 340; widths[1] = 420; applyWidths(); layoutScreen(); });
+  });
+
+  // saved nodes
+
+  function showTab(saved) {
+    $('tabProps').classList.toggle('active', !saved);
+    $('tabSaved').classList.toggle('active', saved);
+    $('propsView').classList.toggle('hidden', saved);
+    $('savedView').classList.toggle('hidden', !saved);
+  }
+  $('tabProps').addEventListener('click', () => showTab(false));
+  $('tabSaved').addEventListener('click', () => showTab(true));
+
+  async function loadSaved() {
+    try { S.saved = await http('/api/nodes'); } catch (e) { S.saved = []; }
+    renderSaved();
+  }
+
+  async function persistSaved() {
+    try { await http('/api/nodes', S.saved); } catch (e) { toast('Save failed: ' + e.message); }
+    renderSaved();
+  }
+
+  function saveNode() {
+    const n = S.selected;
+    if (!n) return;
+    const label = shortId(n.rid) || n.text || n.desc || '';
+    S.saved.unshift({
+      id: Date.now(), name: shortCls(n.cls) + (label ? ' ' + trunc(label, 30) : ''),
+      xpathLite: xpathLite(n), xpath: n.xpath,
+      resourceId: n.rid || '', text: n.text || '', contentDesc: n.desc || '', className: n.cls, package: n.pkg || '',
+      activity: S.data.activity || '', bounds: boundsStr(n.b), clickable: !!n.clickable,
+      source: S.source, time: Date.now(),
+    });
+    persistSaved();
+    toast('Node saved');
+  }
+  $('btnSaveNode').addEventListener('click', saveNode);
+
+  function renderSaved() {
+    $('savedCount').textContent = S.saved.length ? `(${S.saved.length})` : '';
+    if (!S.saved.length) {
+      $('savedList').innerHTML = '<div class="empty">No saved nodes. Select an element and press Save node.</div>';
+      return;
+    }
+    const cur = S.selected ? S.selected.xpath : null;
+    $('savedList').innerHTML = S.saved.map((v) => `<div class="sv${v.xpath === cur ? ' cur' : ''}" data-id="${v.id}">
+      <div class="top"><span class="nm" title="${esc(v.name)}">${esc(v.name)}</span>
+        <button data-act="find" title="Select on current screen">${icon('search')}</button>
+        <button data-act="rename" title="Rename">${icon('edit')}</button>
+        <button data-act="delete" class="del" title="Delete">${icon('delete')}</button></div>
+      <div class="loc" data-copy="${esc(v.xpathLite)}">${esc(v.xpathLite)}</div>
+      ${v.resourceId ? `<div class="loc" data-copy="${esc(v.resourceId)}">${esc(v.resourceId)}</div>` : ''}
+      <div class="ctx">${esc(shortCls(v.activity || v.package))} · ${esc(v.bounds)}</div></div>`).join('');
+  }
+
+  $('savedList').addEventListener('click', (e) => {
+    const loc = e.target.closest('[data-copy]');
+    if (loc) { copy(loc.dataset.copy); return; }
+    const b = e.target.closest('[data-act]');
+    const card = e.target.closest('.sv');
+    if (!b || !card) return;
+    const v = S.saved.find((x) => String(x.id) === card.dataset.id);
+    if (!v) return;
+    if (b.dataset.act === 'delete') {
+      S.saved = S.saved.filter((x) => x !== v);
+      persistSaved();
+    } else if (b.dataset.act === 'find') {
+      let n = S.nodes.find((x) => x && x.xpath === v.xpath);
+      if (!n && S.data) { try { n = evalXpath(v.xpathLite)[0]; } catch (err) { n = null; } }
+      if (n) select(n, false); else toast('Not on this screen');
+    } else if (b.dataset.act === 'rename') {
+      const nm = card.querySelector('.nm');
+      nm.innerHTML = `<input value="${esc(v.name)}">`;
+      const input = nm.firstChild;
+      input.focus();
+      input.select();
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') input.blur();
+        else if (ev.key === 'Escape') { input.value = ''; input.blur(); }
+      });
+      input.addEventListener('blur', () => {
+        if (input.value.trim()) v.name = input.value.trim();
+        persistSaved();
+      }, { once: true });
+    }
+  });
+
+  function constName(name, used) {
+    let c = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'NODE';
+    if (/^[0-9]/.test(c)) c = 'N_' + c;
+    let out = c, k = 2;
+    while (used.has(out)) out = `${c}_${k++}`;
+    used.add(out);
+    return out;
+  }
+
+  $('btnCopyCode').addEventListener('click', () => {
+    if (!S.saved.length) return;
+    const used = new Set();
+    const lines = ['from appium.webdriver.common.appiumby import AppiumBy', ''];
+    for (const v of S.saved) lines.push(`${constName(v.name, used)} = (AppiumBy.XPATH, ${JSON.stringify(v.xpathLite)})`);
+    copy(lines.join('\n') + '\n');
+  });
+
+  function saveBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  $('btnExportSaved').addEventListener('click', () => {
+    saveBlob(new Blob([JSON.stringify(S.saved, null, 2)], { type: 'application/json' }), 'elementcheck_nodes.json');
+  });
+
+  $('btnDownload').addEventListener('click', () => {
+    if (!S.data) return;
+    const stamp = new Date(S.data.time || Date.now()).toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const base = `${(S.data.pkg || 'screen').replace(/[^\w.]/g, '_')}_${stamp}`;
+    const json = JSON.stringify(S.data, (k, v) => (k === 'parent' || k === 'winRef' || k === 'nodes' ? undefined : v), 2);
+    saveBlob(new Blob([json], { type: 'application/json' }), base + '.json');
+    if (S.img) {
+      const c = document.createElement('canvas');
+      c.width = S.img.width;
+      c.height = S.img.height;
+      c.getContext('2d').drawImage(S.img, 0, 0);
+      c.toBlob((b) => b && saveBlob(b, base + '.jpg'), 'image/jpeg', 0.9);
+    }
+  });
+
   renderProps();
+  loadSaved();
   wsConnect();
   setTimeout(refresh, 300);
 })();

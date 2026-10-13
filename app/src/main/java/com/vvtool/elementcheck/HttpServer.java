@@ -221,6 +221,23 @@ final class HttpServer {
                 sendJson(out, j.endArr().toString());
                 return;
             }
+            case "/api/nodes": {
+                File f = new File(svc.getFilesDir(), "saved_nodes.json");
+                if (r.method.equals("POST")) {
+                    try {
+                        new org.json.JSONArray(new String(r.body, StandardCharsets.UTF_8));
+                        java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                        fo.write(r.body);
+                        fo.close();
+                        result(out, null);
+                    } catch (Exception e) {
+                        sendError(out, 400, "invalid JSON array");
+                    }
+                    return;
+                }
+                sendJson(out, f.exists() ? CaptureStore.readText(f) : "[]");
+                return;
+            }
             case "/api/global":
                 result(out, svc.globalAction(r.json().optString("action")));
                 return;

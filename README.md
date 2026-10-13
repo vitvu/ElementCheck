@@ -5,7 +5,8 @@ On-device Android UI inspector. An accessibility service that captures the scree
 - Native Java, no third-party dependencies (~140 KB APK)
 - Android 6.0 – 17 (API 23–37)
 - Floating overlay: capture, collapse, close
-- Web inspector: screenshot with element bounds, properties, hierarchy tree grouped by window, XPath search, copy XML
+- Web inspector: resizable screen / properties / tree panels, tree grouped by window, XPath search, copy XML
+- Saved nodes: keep locators on the device, export JSON or copy as Appium Python
 - Capture manager in the app and on the web: open, rename, download, delete
 - Control mode over WebSocket: live screen, tap / long press / swipe, text input, system buttons
 
@@ -41,6 +42,7 @@ Android 10 and below require a screen capture grant from the app. On Android 11+
 | DELETE | `/api/captures/{id}` | Delete capture |
 | POST | `/api/captures/{id}/meta.json` | Rename: `{"name":"..."}` |
 | GET | `/api/captures/{id}/thumb.jpg` | Thumbnail |
+| GET / POST | `/api/nodes` | Saved nodes (JSON array) |
 | POST | `/api/gesture` | `{"type":"tap\|long\|swipe","x":0,"y":0,"x2":0,"y2":0,"duration":0}` |
 | POST | `/api/global` | `{"action":"back\|home\|recents"}` |
 
