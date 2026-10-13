@@ -61,3 +61,7 @@ Text frames are JSON requests with an optional `id`, answered by `{"t":"ok"|"err
 Binary frames: first byte `1` = snapshot image, `2` = stream frame, followed by JPEG data.
 
 The server has no authentication. Use it on trusted networks or via `adb forward`.
+
+## Support
+
+If ElementCheck saves you time, you can support development via [PayPal](https://paypal.me/vudinhviet).
